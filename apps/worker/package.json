@@ -1,0 +1,13 @@
+{
+  "name": "@tikke/worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'worker — Phase 12'",
+    "build": "echo 'worker — Phase 12'",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}

@@ -1,0 +1,5 @@
+{"id":"evt_g1","type":"gift","timestamp":1710000010000,"user":{"uniqueId":"gifter1","nickname":"선물러1"},"giftId":5655,"giftName":"Rose","repeatCount":1,"diamondCount":1,"isStreakEnd":true}
+{"id":"evt_g2","type":"gift","timestamp":1710000012000,"user":{"uniqueId":"gifter2","nickname":"선물러2"},"giftId":6066,"giftName":"Galaxy","repeatCount":1,"diamondCount":1000,"isStreakEnd":true}
+{"id":"evt_g3","type":"gift","timestamp":1710000014000,"user":{"uniqueId":"gifter3","nickname":"선물러3"},"giftId":5655,"giftName":"Rose","repeatCount":10,"diamondCount":10,"isStreakEnd":true}
+{"id":"evt_g4","type":"gift","timestamp":1710000016000,"user":{"uniqueId":"gifter1","nickname":"선물러1"},"giftId":7000,"giftName":"TikTok","repeatCount":1,"diamondCount":500,"isStreakEnd":true}
+{"id":"evt_g5","type":"gift","timestamp":1710000018000,"user":{"uniqueId":"gifter4","nickname":"선물러4"},"giftId":5655,"giftName":"Rose","repeatCount":99,"diamondCount":99,"isStreakEnd":true}

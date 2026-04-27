@@ -1,0 +1,5 @@
+{"id":"evt_c1","type":"chat","timestamp":1710000000000,"user":{"uniqueId":"viewer1","nickname":"뷰어1"},"message":"안녕하세요!"}
+{"id":"evt_c2","type":"chat","timestamp":1710000001000,"user":{"uniqueId":"viewer2","nickname":"뷰어2"},"message":"방송 잘 보고 있어요 😊"}
+{"id":"evt_c3","type":"chat","timestamp":1710000002000,"user":{"uniqueId":"viewer3","nickname":"뷰어3"},"message":"오늘 방송 재밌다!"}
+{"id":"evt_c4","type":"chat","timestamp":1710000003000,"user":{"uniqueId":"viewer4","nickname":"뷰어4"},"message":"TTS 테스트 메시지입니다"}
+{"id":"evt_c5","type":"chat","timestamp":1710000004000,"user":{"uniqueId":"viewer5","nickname":"뷰어5"},"message":"구독하고 갑니다!"}

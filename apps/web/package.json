@@ -1,0 +1,13 @@
+{
+  "name": "@tikke/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'web app — Phase 12'",
+    "build": "echo 'web app — Phase 12'",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}

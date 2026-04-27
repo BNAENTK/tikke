@@ -1,0 +1,8 @@
+{"id":"evt_m1","type":"member","timestamp":1710000100000,"user":{"uniqueId":"viewer10","nickname":"신규시청자"}}
+{"id":"evt_m2","type":"chat","timestamp":1710000101000,"user":{"uniqueId":"viewer10","nickname":"신규시청자"},"message":"안녕하세요 처음 왔어요!"}
+{"id":"evt_m3","type":"follow","timestamp":1710000102000,"user":{"uniqueId":"viewer10","nickname":"신규시청자"}}
+{"id":"evt_m4","type":"like","timestamp":1710000103000,"user":{"uniqueId":"viewer11","nickname":"좋아요러"},"likeCount":5,"totalLikeCount":200}
+{"id":"evt_m5","type":"gift","timestamp":1710000104000,"user":{"uniqueId":"viewer12","nickname":"선물러"},"giftId":5655,"giftName":"Rose","repeatCount":1,"diamondCount":1,"isStreakEnd":true}
+{"id":"evt_m6","type":"chat","timestamp":1710000105000,"user":{"uniqueId":"viewer13","nickname":"단골뷰어"},"message":"오늘도 화이팅!!"}
+{"id":"evt_m7","type":"share","timestamp":1710000106000,"user":{"uniqueId":"viewer14","nickname":"공유러"}}
+{"id":"evt_m8","type":"subscribe","timestamp":1710000107000,"user":{"uniqueId":"viewer15","nickname":"구독자"}}

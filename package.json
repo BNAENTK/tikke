@@ -1,0 +1,27 @@
+{
+  "name": "tikke-root",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "pnpm --filter @tikke/desktop dev",
+    "dev:web": "pnpm --filter @tikke/web dev",
+    "dev:worker": "pnpm --filter @tikke/worker dev",
+    "build": "pnpm -r build",
+    "build:desktop": "pnpm --filter @tikke/desktop build",
+    "dist:win": "pnpm --filter @tikke/desktop dist:win",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "harness:chat": "pnpm --filter @tikke/desktop harness:chat",
+    "harness:gift": "pnpm --filter @tikke/desktop harness:gift",
+    "harness:tts": "pnpm --filter @tikke/desktop harness:tts",
+    "harness:overlay": "pnpm --filter @tikke/desktop harness:overlay",
+    "harness:stress": "pnpm --filter @tikke/desktop harness:stress"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["electron", "esbuild"]
+  }
+}

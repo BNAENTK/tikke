@@ -1,0 +1,5 @@
+{"id":"stress_1","type":"chat","timestamp":1710000000000,"user":{"uniqueId":"user1","nickname":"유저1"},"message":"스트레스 테스트 1"}
+{"id":"stress_2","type":"gift","timestamp":1710000001000,"user":{"uniqueId":"user2","nickname":"유저2"},"giftName":"Rose","diamondCount":1}
+{"id":"stress_3","type":"like","timestamp":1710000002000,"user":{"uniqueId":"user3","nickname":"유저3"},"likeCount":1}
+{"id":"stress_4","type":"follow","timestamp":1710000003000,"user":{"uniqueId":"user4","nickname":"유저4"}}
+{"id":"stress_5","type":"chat","timestamp":1710000004000,"user":{"uniqueId":"user5","nickname":"유저5"},"message":"스트레스 테스트 5"}
