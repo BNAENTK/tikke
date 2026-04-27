@@ -15,6 +15,7 @@
     "harness:stress": "tsx harness/runners/queue-stress-runner.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.104.1",
     "@tikke/shared": "workspace:*",
     "electron-updater": "^6.1.8"
   },

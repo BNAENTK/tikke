@@ -3,6 +3,7 @@ import React from "react";
 interface StatusBarProps {
   status: "idle" | "connecting" | "connected" | "disconnected" | "error";
   username?: string;
+  onSignOut?: () => void;
 }
 
 const STATUS_COLOR: Record<StatusBarProps["status"], string> = {
@@ -21,7 +22,7 @@ const STATUS_LABEL: Record<StatusBarProps["status"], string> = {
   error: "오류",
 };
 
-export function StatusBar({ status, username }: StatusBarProps): React.ReactElement {
+export function StatusBar({ status, username, onSignOut }: StatusBarProps): React.ReactElement {
   const color = STATUS_COLOR[status];
   return (
     <div
@@ -66,6 +67,28 @@ export function StatusBar({ status, username }: StatusBarProps): React.ReactElem
           {STATUS_LABEL[status]}
           {username && status === "connected" ? ` · @${username}` : ""}
         </span>
+        {username && (
+          <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
+            · {username}
+          </span>
+        )}
+        {onSignOut && (
+          <button
+            onClick={onSignOut}
+            style={{
+              background: "transparent",
+              border: "1px solid var(--border)",
+              borderRadius: 4,
+              color: "var(--text-muted)",
+              cursor: "pointer",
+              fontSize: 11,
+              padding: "2px 8px",
+              marginLeft: 4,
+            }}
+          >
+            로그아웃
+          </button>
+        )}
       </div>
       <WindowControls />
     </div>
