@@ -1,6 +1,8 @@
 import React from "react";
 
 const VERSION = "0.1.0";
+const GITHUB = "https://github.com/BNAENTK/tikke";
+const DOWNLOAD_URL = `${GITHUB}/releases/download/v${VERSION}/Tikke.Setup.${VERSION}.exe`;
 
 export function Download(): React.ReactElement {
   return (
@@ -16,27 +18,27 @@ export function Download(): React.ReactElement {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
           <a
-            href="#"
-            onClick={(e) => e.preventDefault()}
+            href={DOWNLOAD_URL}
             style={{
               display: "inline-flex", alignItems: "center", gap: 10,
               padding: "16px 40px", borderRadius: 12,
               background: "var(--primary)", color: "#000",
               fontWeight: 800, fontSize: 18, width: "100%", maxWidth: 360, justifyContent: "center",
+              textDecoration: "none",
             }}
           >
             <span>Windows 다운로드</span>
             <span style={{ fontSize: 13, fontWeight: 500 }}>v{VERSION} · .exe</span>
           </a>
-          <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
-            빌드 후 릴리즈 예정 · 오픈소스로 직접 빌드 가능
-          </p>
+          <a href={`${GITHUB}/releases`} style={{ fontSize: 12, color: "var(--text-muted)" }}>
+            모든 릴리즈 보기 →
+          </a>
         </div>
 
         <div style={{ marginTop: 60, padding: "24px 28px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, textAlign: "left" }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)", marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>소스에서 빌드</div>
           {[
-            "git clone https://github.com/tikke-app/tikke",
+            `git clone ${GITHUB}`,
             "cd tikke && pnpm install",
             "pnpm dev",
           ].map((cmd) => (

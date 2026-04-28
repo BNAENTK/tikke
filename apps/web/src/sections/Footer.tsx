@@ -14,7 +14,11 @@ export function Footer(): React.ReactElement {
           <span style={{ color: "var(--text-muted)", fontSize: 13 }}>v0.1.0</span>
         </div>
         <div style={{ display: "flex", gap: 24 }}>
-          {[["GitHub", "#"], ["문서", "#"], ["이슈 신고", "#"]].map(([label, href]) => (
+          {[
+            ["GitHub", "https://github.com/BNAENTK/tikke"],
+            ["릴리즈", "https://github.com/BNAENTK/tikke/releases"],
+            ["이슈 신고", "https://github.com/BNAENTK/tikke/issues"],
+          ].map(([label, href]) => (
             <a key={label} href={href} style={{ fontSize: 13, color: "var(--text-muted)" }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text)")}
               onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
