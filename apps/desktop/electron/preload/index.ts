@@ -156,6 +156,10 @@ contextBridge.exposeInMainWorld("tikke", {
     maximize: () => ipcRenderer.invoke("tikke:window:maximize"),
     close: () => ipcRenderer.invoke("tikke:window:close"),
   },
+  telegram: {
+    test: (text?: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke("tikke:telegram:test", text ?? ""),
+  },
   app: {
     getVersion: (): Promise<string> =>
       ipcRenderer.invoke("tikke:app:getVersion"),

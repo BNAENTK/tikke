@@ -6,6 +6,15 @@ export interface AppSettings {
   wsPort: number;
   soundEnabled: boolean;
 
+  // Telegram
+  telegramEnabled: boolean;
+  telegramBotToken: string;
+  telegramChatId: string;
+  telegramOnFollow: boolean;
+  telegramOnGift: boolean;
+  telegramOnSubscribe: boolean;
+  telegramGiftMinDiamonds: number;
+
   // TTS
   ttsEnabled: boolean;
   ttsVoiceName: string;
@@ -29,6 +38,14 @@ const DEFAULTS: AppSettings = {
   overlayPort: 18181,
   wsPort: 18182,
   soundEnabled: true,
+
+  telegramEnabled: false,
+  telegramBotToken: "",
+  telegramChatId: "",
+  telegramOnFollow: true,
+  telegramOnGift: true,
+  telegramOnSubscribe: true,
+  telegramGiftMinDiamonds: 0,
 
   ttsEnabled: true,
   ttsVoiceName: "",

@@ -1,6 +1,7 @@
 import { ipcMain, IpcMainInvokeEvent, BrowserWindow, shell, dialog, app } from "electron";
 import { randomUUID } from "crypto";
 import { checkForUpdates, downloadUpdate, installUpdate } from "../services/updater";
+import { sendTelegramMessage } from "../services/telegram";
 import { getSetting, setSetting, getAllSettings } from "../services/settings";
 import { getDb } from "../services/db";
 import {
@@ -236,6 +237,12 @@ export function registerIpcHandlers(
   });
 
   ipcMain.handle("tikke:commands:newId", () => randomUUID());
+
+  // ── Telegram ──────────────────────────────────────────────────────────────
+  ipcMain.handle("tikke:telegram:test", async (_e: IpcMainInvokeEvent, text: unknown) => {
+    const msg = typeof text === "string" && text.trim() ? text : "✅ Tikke Telegram 연결 테스트";
+    return sendTelegramMessage(msg);
+  });
 
   // ── App / Updater ─────────────────────────────────────────────────────────
   ipcMain.handle("tikke:app:getVersion", () => app.getVersion());

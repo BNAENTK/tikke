@@ -13,6 +13,7 @@ import { overlayServer } from "../services/overlay-server";
 import { overlayRulesService } from "../services/overlay-rules-service";
 import { commandService } from "../services/command-service";
 import { initUpdater } from "../services/updater";
+import { initTelegram } from "../services/telegram";
 import type { TikkeEvent } from "@tikke/shared";
 import type { Session } from "../services/supabase";
 
@@ -128,6 +129,7 @@ app.whenReady().then(async () => {
   if (mainWindow) soundService.init(mainWindow);
   if (mainWindow) commandService.init(mainWindow);
   if (mainWindow) initUpdater(mainWindow);
+  initTelegram();
 
   // Load overlay rules from DB
   overlayRulesService.reload();

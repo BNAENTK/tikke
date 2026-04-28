@@ -7,6 +7,9 @@ type TikkeWindow = {
       getAll: () => Promise<AppSettings>;
       set: (key: keyof AppSettings, value: AppSettings[keyof AppSettings]) => Promise<void>;
     };
+    telegram?: {
+      test: (text?: string) => Promise<{ ok: boolean; error?: string }>;
+    };
   };
 };
 
@@ -65,9 +68,30 @@ function NumberInput({ value, onChange, min, max, step = 1 }: {
   );
 }
 
+function TextInput({ value, onChange, placeholder, password }: {
+  value: string; onChange: (v: string) => void;
+  placeholder?: string; password?: boolean;
+}): React.ReactElement {
+  return (
+    <input
+      type={password ? "password" : "text"}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      style={{
+        width: 220, background: "var(--surface-2)",
+        border: "1px solid var(--border)", borderRadius: 6,
+        padding: "5px 8px", color: "var(--text)",
+        fontSize: 13, outline: "none",
+      }}
+    />
+  );
+}
+
 export function AppSettings(): React.ReactElement {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [saved, setSaved] = useState(false);
+  const [telegramTest, setTelegramTest] = useState<{ ok?: boolean; error?: string } | null>(null);
 
   const tikke = (window as unknown as TikkeWindow).tikke;
 
@@ -80,6 +104,13 @@ export function AppSettings(): React.ReactElement {
     await tikke?.settings?.set(key, value);
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
+  }
+
+  async function handleTelegramTest(): Promise<void> {
+    setTelegramTest(null);
+    const result = await tikke?.telegram?.test("✅ Tikke Telegram 연결 테스트입니다.");
+    setTelegramTest(result ?? { ok: false, error: "API를 찾을 수 없습니다." });
+    setTimeout(() => setTelegramTest(null), 5000);
   }
 
   if (!settings) {
@@ -179,6 +210,72 @@ export function AppSettings(): React.ReactElement {
             </Row>
           ))}
         </div>
+      </section>
+
+      {/* Telegram */}
+      <section style={{ marginBottom: 28 }}>
+        <h2 style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+          Telegram 알림
+        </h2>
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "0 16px" }}>
+          <Row label="Telegram 활성화">
+            <Toggle value={settings.telegramEnabled} onChange={(v) => void update("telegramEnabled", v)} />
+          </Row>
+          <Row label="Bot Token">
+            <TextInput
+              value={settings.telegramBotToken}
+              onChange={(v) => void update("telegramBotToken", v)}
+              placeholder="1234567890:AAF..."
+              password
+            />
+          </Row>
+          <Row label="Chat ID">
+            <TextInput
+              value={settings.telegramChatId}
+              onChange={(v) => void update("telegramChatId", v)}
+              placeholder="-100123456789"
+            />
+          </Row>
+          <Row label="팔로우 알림">
+            <Toggle value={settings.telegramOnFollow} onChange={(v) => void update("telegramOnFollow", v)} />
+          </Row>
+          <Row label="선물 알림">
+            <Toggle value={settings.telegramOnGift} onChange={(v) => void update("telegramOnGift", v)} />
+          </Row>
+          <Row label="구독 알림">
+            <Toggle value={settings.telegramOnSubscribe} onChange={(v) => void update("telegramOnSubscribe", v)} />
+          </Row>
+          <Row label="선물 최소 다이아">
+            <NumberInput value={settings.telegramGiftMinDiamonds} min={0} max={10000}
+              onChange={(v) => void update("telegramGiftMinDiamonds", v)} />
+          </Row>
+          <div style={{ padding: "12px 0", display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              onClick={() => void handleTelegramTest()}
+              style={{
+                padding: "7px 16px",
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
+                borderRadius: 7,
+                color: "var(--text)",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              연결 테스트
+            </button>
+            {telegramTest && (
+              <span style={{ fontSize: 12, fontWeight: 600, color: telegramTest.ok ? "#4ade80" : "var(--secondary)" }}>
+                {telegramTest.ok ? "✓ 전송 성공" : `✗ ${telegramTest.error}`}
+              </span>
+            )}
+          </div>
+        </div>
+        <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8 }}>
+          Bot Token은 <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" style={{ color: "var(--primary)" }}>@BotFather</a>에서,
+          Chat ID는 봇을 대화에 추가 후 <code style={{ background: "var(--surface-2)", padding: "1px 4px", borderRadius: 3 }}>getUpdates</code> API로 확인하세요.
+        </p>
       </section>
     </div>
   );
