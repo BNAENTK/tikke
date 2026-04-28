@@ -6,8 +6,8 @@ compatibility_flags = ["nodejs_compat"]
 # KV namespace for user settings (create with: wrangler kv namespace create TIKKE_SETTINGS)
 [[kv_namespaces]]
 binding = "TIKKE_SETTINGS"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
-preview_id = "REPLACE_WITH_KV_NAMESPACE_PREVIEW_ID"
+id = "2157131587074eafbade50f7ce12f8af"
+preview_id = "c4a7022104614e5a8068ba542a0ba60f"
 
 # Durable Objects for stateful WebSocket overlay rooms
 [[durable_objects.bindings]]
@@ -16,7 +16,7 @@ class_name = "OverlayRoom"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["OverlayRoom"]
+new_sqlite_classes = ["OverlayRoom"]
 
 # Environment variables (set secrets with: wrangler secret put SUPABASE_URL)
 [vars]
