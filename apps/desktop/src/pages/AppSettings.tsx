@@ -10,6 +10,10 @@ type TikkeWindow = {
     telegram?: {
       test: (text?: string) => Promise<{ ok: boolean; error?: string }>;
     };
+    cloud?: {
+      push: () => Promise<{ ok: boolean; error?: string }>;
+      pull: () => Promise<{ ok: boolean; error?: string; count?: number }>;
+    };
   };
 };
 
@@ -92,6 +96,7 @@ export function AppSettings(): React.ReactElement {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [saved, setSaved] = useState(false);
   const [telegramTest, setTelegramTest] = useState<{ ok?: boolean; error?: string } | null>(null);
+  const [cloudStatus, setCloudStatus] = useState<{ ok?: boolean; error?: string; count?: number; action?: string } | null>(null);
 
   const tikke = (window as unknown as TikkeWindow).tikke;
 
@@ -104,6 +109,24 @@ export function AppSettings(): React.ReactElement {
     await tikke?.settings?.set(key, value);
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
+  }
+
+  async function handleCloudPush(): Promise<void> {
+    setCloudStatus({ action: "push" });
+    const result = await tikke?.cloud?.push();
+    setCloudStatus({ ...result, action: "push" });
+    setTimeout(() => setCloudStatus(null), 4000);
+  }
+
+  async function handleCloudPull(): Promise<void> {
+    setCloudStatus({ action: "pull" });
+    const result = await tikke?.cloud?.pull();
+    setCloudStatus({ ...result, action: "pull" });
+    if (result?.ok) {
+      // Reload settings from DB
+      tikke?.settings?.getAll().then(setSettings).catch(() => {});
+    }
+    setTimeout(() => setCloudStatus(null), 4000);
   }
 
   async function handleTelegramTest(): Promise<void> {
@@ -129,6 +152,37 @@ export function AppSettings(): React.ReactElement {
           <span style={{ fontSize: 12, color: "#34D399", fontWeight: 600 }}>저장됨 ✓</span>
         )}
       </div>
+
+      {/* Cloud Sync */}
+      <section style={{ marginBottom: 28 }}>
+        <h2 style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+          클라우드 동기화
+        </h2>
+        <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>
+          로그인 계정 기준으로 설정을 저장하거나 불러옵니다. 포트, 토큰 등 기기별 설정은 동기화에서 제외됩니다.
+        </p>
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 20px" }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <button onClick={() => void handleCloudPush()} style={btnStyle}
+              disabled={cloudStatus?.action === "push"}>
+              {cloudStatus?.action === "push" && !cloudStatus.ok && cloudStatus.ok === undefined ? "업로드 중..." : "↑ 클라우드에 저장"}
+            </button>
+            <button onClick={() => void handleCloudPull()} style={btnStyle}
+              disabled={cloudStatus?.action === "pull"}>
+              {cloudStatus?.action === "pull" && !cloudStatus.ok && cloudStatus.ok === undefined ? "다운로드 중..." : "↓ 클라우드에서 불러오기"}
+            </button>
+            {cloudStatus && cloudStatus.ok !== undefined && (
+              <span style={{ fontSize: 12, fontWeight: 600, color: cloudStatus.ok ? "#4ade80" : "var(--secondary)" }}>
+                {cloudStatus.ok
+                  ? cloudStatus.action === "pull"
+                    ? `✓ ${cloudStatus.count ?? 0}개 설정 불러옴`
+                    : "✓ 저장 완료"
+                  : `✗ ${cloudStatus.error}`}
+              </span>
+            )}
+          </div>
+        </div>
+      </section>
 
       {/* General */}
       <section style={{ marginBottom: 28 }}>
@@ -280,3 +334,14 @@ export function AppSettings(): React.ReactElement {
     </div>
   );
 }
+
+const btnStyle: React.CSSProperties = {
+  padding: "7px 16px",
+  background: "var(--surface-2)",
+  border: "1px solid var(--border)",
+  borderRadius: 7,
+  color: "var(--text)",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 600,
+};

@@ -160,6 +160,12 @@ contextBridge.exposeInMainWorld("tikke", {
     test: (text?: string): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke("tikke:telegram:test", text ?? ""),
   },
+  cloud: {
+    push: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke("tikke:cloud:push"),
+    pull: (): Promise<{ ok: boolean; error?: string; count?: number }> =>
+      ipcRenderer.invoke("tikke:cloud:pull"),
+  },
   app: {
     getVersion: (): Promise<string> =>
       ipcRenderer.invoke("tikke:app:getVersion"),

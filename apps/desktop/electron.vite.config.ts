@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
     "process.env.VITE_SUPABASE_ANON_KEY": JSON.stringify(env.VITE_SUPABASE_ANON_KEY ?? ""),
     "process.env.TIKKE_OVERLAY_PORT": JSON.stringify(env.TIKKE_OVERLAY_PORT ?? "18181"),
     "process.env.TIKKE_WS_PORT": JSON.stringify(env.TIKKE_WS_PORT ?? "18182"),
+    "process.env.CLOUDFLARE_API_BASE_URL": JSON.stringify(env.CLOUDFLARE_API_BASE_URL ?? ""),
   };
 
   return {

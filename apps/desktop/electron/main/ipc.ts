@@ -2,6 +2,7 @@ import { ipcMain, IpcMainInvokeEvent, BrowserWindow, shell, dialog, app } from "
 import { randomUUID } from "crypto";
 import { checkForUpdates, downloadUpdate, installUpdate } from "../services/updater";
 import { sendTelegramMessage } from "../services/telegram";
+import { pushSettingsToCloud, pullSettingsFromCloud } from "../services/cloud-sync";
 import { getSetting, setSetting, getAllSettings } from "../services/settings";
 import { getDb } from "../services/db";
 import {
@@ -237,6 +238,10 @@ export function registerIpcHandlers(
   });
 
   ipcMain.handle("tikke:commands:newId", () => randomUUID());
+
+  // ── Cloud Sync ────────────────────────────────────────────────────────────
+  ipcMain.handle("tikke:cloud:push", async () => pushSettingsToCloud());
+  ipcMain.handle("tikke:cloud:pull", async () => pullSettingsFromCloud());
 
   // ── Telegram ──────────────────────────────────────────────────────────────
   ipcMain.handle("tikke:telegram:test", async (_e: IpcMainInvokeEvent, text: unknown) => {
