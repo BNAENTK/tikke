@@ -3,11 +3,25 @@ import { StatusBar } from "../components/StatusBar";
 import { Sidebar, SidebarPage } from "../components/Sidebar";
 import { EventFeed } from "../components/EventFeed";
 import { Dashboard } from "../pages/Dashboard";
+import { EventLog } from "../pages/EventLog";
+import { SoundLibrary } from "../pages/SoundLibrary";
+import { TTSSettings } from "../pages/TTSSettings";
+import { OverlaySettings } from "../pages/OverlaySettings";
+import { CommandSettings } from "../pages/CommandSettings";
+import { BuildInfo } from "../pages/BuildInfo";
+import { Connection } from "../pages/Connection";
+import { ChatViewer } from "../pages/ChatViewer";
+import { GiftViewer } from "../pages/GiftViewer";
+import { AppSettings } from "../pages/AppSettings";
 import { Login } from "../pages/Login";
 import { useEventStore } from "../stores/eventStore";
 import { useAuthStore } from "../stores/authStore";
+import { useLiveStore } from "../stores/liveStore";
+import { useSoundPlayer } from "../hooks/useSoundPlayer";
+import { useTTSEngine } from "../hooks/useTTSEngine";
 import type { TikkeEvent } from "@tikke/shared";
 import type { Session, TikkeProfile } from "../../electron/services/supabase";
+import type { TikLiveStatus } from "../stores/liveStore";
 
 type TikkeWindow = {
   tikke?: {
@@ -17,6 +31,10 @@ type TikkeWindow = {
       getProfile: (userId: string) => Promise<TikkeProfile | null>;
       signOut: () => Promise<void>;
       onSession: (cb: (s: Session | null) => void) => () => void;
+    };
+    live?: {
+      getStatus: () => Promise<{ status: TikLiveStatus; username: string | null }>;
+      onStatus: (cb: (payload: { status: TikLiveStatus; error?: string }) => void) => () => void;
     };
   };
 };
@@ -35,10 +53,14 @@ function Placeholder({ title }: { title: string }): React.ReactElement {
 export function App(): React.ReactElement {
   const [page, setPage] = useState<SidebarPage>("dashboard");
 
+  useSoundPlayer();
+  useTTSEngine();
+
   const addEvent = useEventStore((s) => s.addEvent);
   const { session, profile, loading, setSession, setProfile, setLoading, setError, reset } = useAuthStore();
+  const { setStatus: setLiveStatus, setUsername: setLiveUsername } = useLiveStore();
 
-  // Initialize: load existing session and subscribe to session changes
+  // Initialize auth and subscribe to session changes
   useEffect(() => {
     const tikke = (window as unknown as TikkeWindow).tikke;
     if (!tikke?.auth) {
@@ -46,7 +68,6 @@ export function App(): React.ReactElement {
       return;
     }
 
-    // Load session from main process
     tikke.auth.getSession().then(async (s) => {
       if (s) {
         setSession(s);
@@ -56,7 +77,6 @@ export function App(): React.ReactElement {
       setLoading(false);
     }).catch(() => setLoading(false));
 
-    // Subscribe to session push from main
     const unsub = tikke.auth.onSession(async (s) => {
       if (s) {
         setSession(s);
@@ -70,6 +90,24 @@ export function App(): React.ReactElement {
     return unsub;
   }, [setSession, setProfile, setLoading, setError, reset]);
 
+  // Initialize live status and subscribe to changes
+  useEffect(() => {
+    const tikke = (window as unknown as TikkeWindow).tikke;
+    if (!tikke?.live) return;
+
+    tikke.live.getStatus().then(({ status, username }) => {
+      setLiveStatus(status);
+      setLiveUsername(username);
+    }).catch(() => {});
+
+    const unsub = tikke.live.onStatus(({ status, error }) => {
+      setLiveStatus(status, error);
+      if (status !== "connected") setLiveUsername(null);
+    });
+
+    return unsub;
+  }, [setLiveStatus, setLiveUsername]);
+
   // Subscribe to TikTok events
   useEffect(() => {
     const tikke = (window as unknown as TikkeWindow).tikke;
@@ -82,23 +120,25 @@ export function App(): React.ReactElement {
     await tikke?.auth?.signOut();
   }
 
+  const liveStatus = useLiveStore((s) => s.status);
+
   function renderPage(): React.ReactElement {
     switch (page) {
       case "dashboard": return <Dashboard />;
-      case "connection": return <Placeholder title="TikTok 연결" />;
-      case "eventlog": return <Placeholder title="이벤트 로그" />;
-      case "chat": return <Placeholder title="채팅 뷰어" />;
-      case "gifts": return <Placeholder title="선물 뷰어" />;
-      case "sounds": return <Placeholder title="사운드 라이브러리" />;
-      case "tts": return <Placeholder title="TTS 설정" />;
-      case "overlays": return <Placeholder title="오버레이 설정" />;
-      case "commands": return <Placeholder title="명령어 설정" />;
-      case "settings": return <Placeholder title="앱 설정" />;
+      case "connection": return <Connection />;
+      case "eventlog": return <EventLog />;
+      case "chat": return <ChatViewer />;
+      case "gifts": return <GiftViewer />;
+      case "sounds": return <SoundLibrary />;
+      case "tts": return <TTSSettings />;
+      case "overlays": return <OverlaySettings />;
+      case "commands": return <CommandSettings />;
+      case "settings": return <AppSettings />;
+      case "buildinfo": return <BuildInfo />;
       default: return <Dashboard />;
     }
   }
 
-  // Loading splash
   if (loading) {
     return (
       <div
@@ -119,16 +159,14 @@ export function App(): React.ReactElement {
     );
   }
 
-  // No session → show login
   if (!session) {
     return <Login />;
   }
 
-  // Authenticated → main layout
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       <StatusBar
-        status="idle"
+        status={liveStatus}
         username={profile?.display_name ?? session.user.email}
         onSignOut={() => void handleSignOut()}
       />

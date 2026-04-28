@@ -1,20 +1,31 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, shell, protocol, net } from "electron";
 import { join, resolve } from "path";
 import { registerIpcHandlers } from "./ipc";
 import { exchangeCodeForSession, restoreSession, isSupabaseConfigured } from "../services/supabase";
 import { saveSession, loadStoredTokens, clearSession } from "../services/session-store";
+import { initDb, closeDb, getDb } from "../services/db";
+import { tikLiveService } from "../services/tiklive";
+import { eventBus } from "../services/event-bus";
+import { eventQueue } from "../services/event-queue";
+import { ruleEngine } from "../services/rule-engine";
+import { soundService } from "../services/sound-service";
+import { overlayServer } from "../services/overlay-server";
+import { overlayRulesService } from "../services/overlay-rules-service";
+import { commandService } from "../services/command-service";
+import { initUpdater } from "../services/updater";
 import type { TikkeEvent } from "@tikke/shared";
 import type { Session } from "../services/supabase";
 
-// Windows: single instance lock for deep-link callback
+// Register tikke-sound:// before app is ready
+protocol.registerSchemesAsPrivileged([
+  { scheme: "tikke-sound", privileges: { secure: true, standard: true, supportFetchAPI: true } },
+]);
+
 const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) {
-  app.quit();
-}
+if (!gotLock) app.quit();
 
 let mainWindow: BrowserWindow | null = null;
 
-// Register tikke:// custom protocol
 if (process.defaultApp) {
   app.setAsDefaultProtocolClient("tikke", process.execPath, [resolve(process.argv[1] ?? "")]);
 } else {
@@ -68,23 +79,98 @@ function pushSessionToRenderer(session: Session | null): void {
   mainWindow?.webContents.send("tikke:auth:session", session);
 }
 
-function handleMockEvent(event: TikkeEvent): void {
-  mainWindow?.webContents.send("tikke:event", event);
+// ── 이벤트 파이프라인 설정 ────────────────────────────────────────────────────
+
+function setupEventPipeline(): void {
+  // 1. EventQueue 프로세서: DB 로깅 → EventBus 발행
+  eventQueue.setProcessor(async (event: TikkeEvent) => {
+    try {
+      getDb().logEvent(event.id, event.type, JSON.stringify(event));
+    } catch (err) {
+      console.error("[pipeline] db log error:", err);
+    }
+    eventBus.publish(event);
+  });
+
+  // 2. EventBus 구독: Rule Engine
+  eventBus.subscribe("*", (event) => {
+    ruleEngine.evaluate(event);
+  });
+
+  // 3. EventBus 구독: UI 렌더러로 전송
+  eventBus.subscribe("*", (event) => {
+    mainWindow?.webContents.send("tikke:event", event);
+  });
+
+  // 4. EventBus 구독: 오버레이 WebSocket 브로드캐스트
+  eventBus.subscribe("*", (event) => {
+    overlayServer.handleEvent(event);
+  });
+
+  // 5. EventBus 구독: 오버레이 규칙 엔진
+  eventBus.subscribe("*", (event) => {
+    overlayRulesService.handleEvent(event);
+  });
+
+  // 6. EventBus 구독: 명령어 감지 (채팅)
+  eventBus.subscribe("chat", (event) => {
+    commandService.handleChatEvent(event);
+  });
 }
 
-registerIpcHandlers(handleMockEvent, pushSessionToRenderer);
+function enqueueEvent(event: TikkeEvent): void {
+  eventQueue.enqueue(event);
+}
+
+registerIpcHandlers(enqueueEvent, pushSessionToRenderer);
 
 app.whenReady().then(async () => {
+  // Serve local audio files via tikke-sound:// protocol
+  protocol.handle("tikke-sound", (request) => {
+    const encoded = request.url.slice("tikke-sound://".length);
+    const filePath = decodeURIComponent(encoded);
+    return net.fetch(`file:///${filePath}`);
+  });
+
+  await initDb();
+  setupEventPipeline();
   createWindow();
 
-  // Try to restore persisted session on launch
+  // Sound service needs the window reference for IPC push
+  if (mainWindow) soundService.init(mainWindow);
+  if (mainWindow) commandService.init(mainWindow);
+  if (mainWindow) initUpdater(mainWindow);
+
+  // Load overlay rules from DB
+  overlayRulesService.reload();
+
+  // Start overlay server
+  const httpPort = Number(process.env.TIKKE_OVERLAY_PORT) || 18181;
+  const wsPort = Number(process.env.TIKKE_WS_PORT) || 18182;
+  overlayServer.start(httpPort, wsPort);
+
+  // Sound events via EventBus
+  eventBus.subscribe("*", (event) => {
+    soundService.handleEvent(event);
+  });
+
+  // TikTok LIVE 이벤트 → 파이프라인
+  tikLiveService.onEvent((event) => {
+    enqueueEvent(event);
+  });
+
+  // Live 상태 → 렌더러
+  tikLiveService.onStatus((status, error) => {
+    mainWindow?.webContents.send("tikke:live:status", { status, error });
+  });
+
+  // 세션 복원
   if (isSupabaseConfigured()) {
     const stored = loadStoredTokens();
     if (stored) {
       const session = await restoreSession(stored.accessToken, stored.refreshToken);
       if (session) {
         saveSession(session);
-        // Renderer not ready yet — send after DOM is ready
         mainWindow?.webContents.once("did-finish-load", () => pushSessionToRenderer(session));
       } else {
         clearSession();
@@ -97,7 +183,6 @@ app.whenReady().then(async () => {
   });
 });
 
-// Windows: deep link arrives as second-instance argv
 app.on("second-instance", (_event, argv) => {
   const url = argv.find((a) => a.startsWith("tikke://"));
   if (url) void handleAuthCallback(url);
@@ -107,11 +192,12 @@ app.on("second-instance", (_event, argv) => {
   }
 });
 
-// macOS: deep link arrives via open-url
 app.on("open-url", (_event, url) => {
   void handleAuthCallback(url);
 });
 
 app.on("window-all-closed", () => {
+  overlayServer.stop();
+  closeDb();
   if (process.platform !== "darwin") app.quit();
 });

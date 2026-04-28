@@ -1,5 +1,28 @@
 name = "tikke-worker"
 main = "src/index.ts"
 compatibility_date = "2024-04-01"
+compatibility_flags = ["nodejs_compat"]
 
-# TODO Phase 12: Configure Durable Objects, R2, KV bindings here
+# KV namespace for user settings (create with: wrangler kv namespace create TIKKE_SETTINGS)
+[[kv_namespaces]]
+binding = "TIKKE_SETTINGS"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_KV_NAMESPACE_PREVIEW_ID"
+
+# Durable Objects for stateful WebSocket overlay rooms
+[[durable_objects.bindings]]
+name = "TIKKE_OVERLAY"
+class_name = "OverlayRoom"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["OverlayRoom"]
+
+# Environment variables (set secrets with: wrangler secret put SUPABASE_URL)
+[vars]
+TIKKE_APP_VERSION = "0.1.0"
+
+# Development: set these in .dev.vars (do not commit)
+# SUPABASE_URL = "https://xxx.supabase.co"
+# SUPABASE_ANON_KEY = "..."
+# SUPABASE_SERVICE_ROLE_KEY = "..."

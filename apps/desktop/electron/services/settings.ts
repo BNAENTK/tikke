@@ -4,16 +4,47 @@ export interface AppSettings {
   theme: "dark";
   overlayPort: number;
   wsPort: number;
-  ttsEnabled: boolean;
   soundEnabled: boolean;
+
+  // TTS
+  ttsEnabled: boolean;
+  ttsVoiceName: string;
+  ttsRate: number;
+  ttsPitch: number;
+  ttsVolume: number;
+  ttsReadUsername: boolean;
+  ttsEventChat: boolean;
+  ttsEventGift: boolean;
+  ttsEventFollow: boolean;
+  ttsEventMember: boolean;
+  ttsEventShare: boolean;
+  ttsEventSubscribe: boolean;
+  ttsGiftMinDiamonds: number;
+  ttsMaxTextLength: number;
+  ttsProfanityFilter: boolean;
 }
 
 const DEFAULTS: AppSettings = {
   theme: "dark",
   overlayPort: 18181,
   wsPort: 18182,
-  ttsEnabled: true,
   soundEnabled: true,
+
+  ttsEnabled: true,
+  ttsVoiceName: "",
+  ttsRate: 1.0,
+  ttsPitch: 1.0,
+  ttsVolume: 1.0,
+  ttsReadUsername: true,
+  ttsEventChat: true,
+  ttsEventGift: true,
+  ttsEventFollow: true,
+  ttsEventMember: false,
+  ttsEventShare: false,
+  ttsEventSubscribe: true,
+  ttsGiftMinDiamonds: 0,
+  ttsMaxTextLength: 100,
+  ttsProfanityFilter: false,
 };
 
 export function getSetting<K extends keyof AppSettings>(key: K): AppSettings[K] {

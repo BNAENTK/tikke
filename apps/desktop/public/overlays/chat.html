@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Tikke Chat Overlay</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%;
+  background: transparent !important;
+  overflow: hidden;
+  font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+}
+#chat {
+  position: fixed;
+  bottom: 16px; left: 16px;
+  width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 85vh;
+  overflow: hidden;
+}
+.msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 7px 10px;
+  background: rgba(10,10,20,0.78);
+  border-radius: 8px;
+  animation: appear 0.25s ease;
+  word-break: break-all;
+}
+.nick {
+  font-size: 13px;
+  font-weight: 700;
+  color: #00F2EA;
+  flex-shrink: 0;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.text {
+  font-size: 13px;
+  color: #fff;
+  line-height: 1.4;
+}
+.fade-out { animation: disappear 0.4s ease forwards; }
+@keyframes appear {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes disappear {
+  to { opacity: 0; height: 0; margin: 0; padding: 0; }
+}
+</style>
+</head>
+<body>
+<div id="chat"></div>
+<script>
+const container = document.getElementById('chat');
+const MAX = 15;
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function addChat(user, message) {
+  const el = document.createElement('div');
+  el.className = 'msg';
+  el.innerHTML = `<span class="nick">${esc(user?.nickname || user?.uniqueId || '?')}</span><span class="text">${esc(message)}</span>`;
+  container.appendChild(el);
+  const all = container.querySelectorAll('.msg');
+  if (all.length > MAX) {
+    const old = all[0];
+    old.classList.add('fade-out');
+    setTimeout(() => old.remove(), 400);
+  }
+  el.scrollIntoView();
+}
+
+function handleMessage(msg) {
+  if (msg.type === 'chat' && msg.payload?.message) {
+    addChat(msg.payload.user, msg.payload.message);
+  } else if (msg.type === 'clear') {
+    container.innerHTML = '';
+  }
+}
+
+let ws;
+function connect() {
+  ws = new WebSocket('ws://localhost:18182');
+  ws.onmessage = e => { try { handleMessage(JSON.parse(e.data)); } catch {} };
+  ws.onclose = () => setTimeout(connect, 2000);
+  ws.onerror = () => ws.close();
+}
+connect();
+</script>
+</body>
+</html>

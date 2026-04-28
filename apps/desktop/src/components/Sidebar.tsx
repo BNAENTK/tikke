@@ -10,7 +10,8 @@ export type SidebarPage =
   | "tts"
   | "overlays"
   | "commands"
-  | "settings";
+  | "settings"
+  | "buildinfo";
 
 interface NavItem {
   id: SidebarPage;
@@ -29,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "overlays", label: "오버레이", icon: "⬜" },
   { id: "commands", label: "명령어", icon: "⌘" },
   { id: "settings", label: "설정", icon: "⚙" },
+  { id: "buildinfo", label: "빌드 정보", icon: "◉" },
 ];
 
 interface SidebarProps {

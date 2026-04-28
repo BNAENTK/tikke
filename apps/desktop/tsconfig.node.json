@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "esModuleInterop": true
   },
-  "include": ["electron", "harness", "electron.vite.config.ts"]
+  "include": ["electron", "harness", "electron.vite.config.ts", "electron/types"]
 }

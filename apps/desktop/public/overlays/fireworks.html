@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Tikke Fireworks Overlay</title>
+<style>
+* { margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  background: transparent !important;
+  overflow: hidden;
+}
+canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+const COLORS = ['#FF0050','#00F2EA','#A78BFA','#FF6B9D','#FBBF24','#34D399','#60A5FA'];
+const particles = [];
+
+function randomBetween(a, b) { return a + Math.random() * (b - a); }
+
+function explode(x, y, count) {
+  const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 / count) * i + randomBetween(-0.3, 0.3);
+    const speed = randomBetween(2, 8);
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      alpha: 1,
+      size: randomBetween(2, 5),
+      color,
+      decay: randomBetween(0.012, 0.022),
+    });
+  }
+}
+
+let animRunning = false;
+function animate() {
+  if (particles.length === 0) { animRunning = false; return; }
+  animRunning = true;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.12; // gravity
+    p.vx *= 0.98;
+    p.alpha -= p.decay;
+    if (p.alpha <= 0) { particles.splice(i, 1); continue; }
+    ctx.globalAlpha = p.alpha;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  requestAnimationFrame(animate);
+}
+
+function launchFireworks(intensity, durationMs) {
+  const count = Math.max(1, Math.min(intensity || 3, 10));
+  const particlesPerBurst = 40 + count * 10;
+  const interval = Math.max(200, 1000 / count);
+  let elapsed = 0;
+
+  const timer = setInterval(() => {
+    const x = randomBetween(canvas.width * 0.2, canvas.width * 0.8);
+    const y = randomBetween(canvas.height * 0.1, canvas.height * 0.5);
+    explode(x, y, particlesPerBurst);
+    if (!animRunning) animate();
+    elapsed += interval;
+    if (elapsed >= durationMs) clearInterval(timer);
+  }, interval);
+}
+
+function handleMessage(msg) {
+  if (msg.type === 'fireworks') {
+    launchFireworks(msg.intensity || 3, msg.durationMs || 3000);
+  } else if (msg.type === 'clear') {
+    particles.length = 0;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+let ws;
+function connect() {
+  ws = new WebSocket('ws://localhost:18182');
+  ws.onmessage = e => { try { handleMessage(JSON.parse(e.data)); } catch {} };
+  ws.onclose = () => setTimeout(connect, 2000);
+  ws.onerror = () => ws.close();
+}
+connect();
+</script>
+</body>
+</html>

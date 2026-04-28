@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Tikke Video Overlay</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%;
+  background: transparent !important;
+  overflow: hidden;
+}
+#media-wrap {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+#media-wrap.hidden { display: none; }
+video, img {
+  max-width: 80%;
+  max-height: 80%;
+  border-radius: 12px;
+  box-shadow: 0 0 40px rgba(0,0,0,0.6);
+  animation: popIn 0.3s ease;
+}
+.fade-out { animation: fadeOut 0.4s ease forwards !important; }
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes fadeOut {
+  to { opacity: 0; transform: scale(0.8); }
+}
+</style>
+</head>
+<body>
+<div id="media-wrap" class="hidden"></div>
+<script>
+const wrap = document.getElementById('media-wrap');
+let hideTimer = null;
+
+function clear() {
+  if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+  const el = wrap.querySelector('video, img');
+  if (el) {
+    el.classList.add('fade-out');
+    setTimeout(() => {
+      wrap.innerHTML = '';
+      wrap.classList.add('hidden');
+    }, 400);
+  } else {
+    wrap.innerHTML = '';
+    wrap.classList.add('hidden');
+  }
+}
+
+function showVideo(url, durationMs) {
+  clear();
+  const video = document.createElement('video');
+  video.src = url;
+  video.autoplay = true;
+  video.muted = false;
+  video.controls = false;
+  video.loop = false;
+  video.addEventListener('ended', () => clear());
+  video.addEventListener('error', () => clear());
+  wrap.appendChild(video);
+  wrap.classList.remove('hidden');
+  if (durationMs) hideTimer = setTimeout(clear, durationMs);
+}
+
+function showImage(url, durationMs) {
+  clear();
+  const img = document.createElement('img');
+  img.src = url;
+  img.alt = '';
+  wrap.appendChild(img);
+  wrap.classList.remove('hidden');
+  if (durationMs) hideTimer = setTimeout(clear, durationMs);
+}
+
+function handleMessage(msg) {
+  if (msg.type === 'video' && msg.url) {
+    showVideo(msg.url, msg.durationMs || 0);
+  } else if (msg.type === 'image' && msg.url) {
+    showImage(msg.url, msg.durationMs || 5000);
+  } else if (msg.type === 'clear') {
+    clear();
+  }
+}
+
+let ws;
+function connect() {
+  ws = new WebSocket('ws://localhost:18182');
+  ws.onmessage = e => { try { handleMessage(JSON.parse(e.data)); } catch {} };
+  ws.onclose = () => setTimeout(connect, 2000);
+  ws.onerror = () => ws.close();
+}
+connect();
+</script>
+</body>
+</html>

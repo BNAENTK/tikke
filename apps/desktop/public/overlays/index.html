@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tikke Overlay</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%;
+  background: transparent !important;
+  overflow: hidden;
+  font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+}
+#feed {
+  position: fixed;
+  bottom: 20px; right: 20px;
+  width: 360px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 6px;
+  max-height: 80vh;
+  overflow: hidden;
+}
+.item {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  animation: slideIn 0.3s ease;
+  word-break: break-word;
+}
+.item-chat {
+  background: rgba(0,0,0,0.75);
+  color: #fff;
+  border-left: 3px solid #00F2EA;
+}
+.item-gift {
+  background: rgba(0,0,0,0.85);
+  color: #fff;
+  border-left: 3px solid #FF0050;
+}
+.item-follow, .item-member, .item-subscribe {
+  background: rgba(0,0,0,0.65);
+  color: #ccc;
+  font-size: 12px;
+}
+.nick { font-weight: 700; color: #00F2EA; margin-right: 4px; }
+.nick-gift { color: #FF6B9D; }
+.gift-name { color: #FF0050; font-weight: 700; }
+.diamond { color: #A78BFA; }
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.fade-out { animation: fadeOut 0.5s ease forwards; }
+@keyframes fadeOut {
+  to { opacity: 0; transform: translateX(20px); }
+}
+</style>
+</head>
+<body>
+<div id="feed"></div>
+<script>
+const feed = document.getElementById('feed');
+const MAX_ITEMS = 12;
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function nick(user) {
+  return esc(user?.nickname || user?.uniqueId || '');
+}
+
+function addItem(cls, html) {
+  const el = document.createElement('div');
+  el.className = 'item ' + cls;
+  el.innerHTML = html;
+  feed.prepend(el);
+  const items = feed.querySelectorAll('.item');
+  if (items.length > MAX_ITEMS) {
+    const last = items[items.length - 1];
+    last.classList.add('fade-out');
+    setTimeout(() => last.remove(), 500);
+  }
+}
+
+function handleMessage(msg) {
+  const p = msg.payload || {};
+  switch (msg.type) {
+    case 'chat':
+      addItem('item-chat', `<span class="nick">${nick(p.user)}</span>${esc(p.message)}`);
+      break;
+    case 'gift': {
+      const diamonds = (p.repeatCount || 1) * (p.diamondCount || 0);
+      addItem('item-gift',
+        `<span class="nick nick-gift">${nick(p.user)}</span>` +
+        `<span class="gift-name">${esc(p.giftName || '선물')}</span>` +
+        (p.repeatCount > 1 ? ` ×${p.repeatCount}` : '') +
+        (diamonds > 0 ? ` <span class="diamond">💎${diamonds}</span>` : '')
+      );
+      break;
+    }
+    case 'follow':
+      addItem('item-follow', `👋 <span class="nick">${nick(p.user)}</span>님이 팔로우했습니다`);
+      break;
+    case 'member':
+      addItem('item-member', `🔵 <span class="nick">${nick(p.user)}</span>님이 입장했습니다`);
+      break;
+    case 'subscribe':
+      addItem('item-subscribe', `⭐ <span class="nick">${nick(p.user)}</span>님이 구독했습니다`);
+      break;
+    case 'clear':
+      feed.innerHTML = '';
+      break;
+  }
+}
+
+let ws;
+function connect() {
+  ws = new WebSocket('ws://localhost:18182');
+  ws.onmessage = e => { try { handleMessage(JSON.parse(e.data)); } catch {} };
+  ws.onclose = () => setTimeout(connect, 2000);
+  ws.onerror = () => ws.close();
+}
+connect();
+</script>
+</body>
+</html>

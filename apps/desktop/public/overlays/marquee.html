@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Tikke Marquee Overlay</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%;
+  background: transparent !important;
+  overflow: hidden;
+  font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+}
+#marquee-wrap {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  background: rgba(0,0,0,0.82);
+  border-top: 2px solid #00F2EA;
+}
+#marquee-wrap.hidden { display: none; }
+#marquee-track {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform;
+}
+.marquee-text {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  padding: 0 60px;
+  text-shadow: 0 0 10px rgba(0,242,234,0.5);
+}
+</style>
+</head>
+<body>
+<div id="marquee-wrap" class="hidden">
+  <div id="marquee-track">
+    <div id="marquee-text" class="marquee-text"></div>
+    <div id="marquee-text2" class="marquee-text"></div>
+  </div>
+</div>
+<script>
+const wrap = document.getElementById('marquee-wrap');
+const track = document.getElementById('marquee-track');
+const text1 = document.getElementById('marquee-text');
+const text2 = document.getElementById('marquee-text2');
+
+let animFrame = null;
+let hideTimer = null;
+let startX = 0;
+let speed = 1.5; // px per frame
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function startMarquee(text, durationMs) {
+  if (animFrame) cancelAnimationFrame(animFrame);
+  if (hideTimer) clearTimeout(hideTimer);
+
+  const safe = esc(text);
+  text1.innerHTML = safe;
+  text2.innerHTML = safe;
+  wrap.classList.remove('hidden');
+
+  const trackWidth = text1.offsetWidth + 120;
+  startX = wrap.offsetWidth;
+  track.style.transform = `translateX(${startX}px)`;
+
+  function step() {
+    startX -= speed;
+    track.style.transform = `translateX(${startX}px)`;
+    if (startX < -trackWidth) {
+      startX = wrap.offsetWidth;
+    }
+    animFrame = requestAnimationFrame(step);
+  }
+  animFrame = requestAnimationFrame(step);
+
+  if (durationMs > 0) {
+    hideTimer = setTimeout(() => {
+      cancelAnimationFrame(animFrame);
+      animFrame = null;
+      wrap.classList.add('hidden');
+    }, durationMs);
+  }
+}
+
+function handleMessage(msg) {
+  if (msg.type === 'marquee' && msg.text) {
+    startMarquee(msg.text, msg.durationMs || 8000);
+  } else if (msg.type === 'clear') {
+    if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+    wrap.classList.add('hidden');
+  }
+}
+
+let ws;
+function connect() {
+  ws = new WebSocket('ws://localhost:18182');
+  ws.onmessage = e => { try { handleMessage(JSON.parse(e.data)); } catch {} };
+  ws.onclose = () => setTimeout(connect, 2000);
+  ws.onerror = () => ws.close();
+}
+connect();
+</script>
+</body>
+</html>

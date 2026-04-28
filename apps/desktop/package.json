@@ -17,12 +17,17 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
     "@tikke/shared": "workspace:*",
-    "electron-updater": "^6.1.8"
+    "electron-updater": "^6.1.8",
+    "sql.js": "^1.14.1",
+    "tiktok-live-connector": "^1.1.9",
+    "ws": "^8.17.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
+    "@types/ws": "^8.5.10",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.0",
+    "@types/sql.js": "^1.4.11",
     "@vitejs/plugin-react": "^4.2.1",
     "electron": "^30.0.2",
     "electron-builder": "^24.13.3",
@@ -37,11 +42,45 @@
   "build": {
     "appId": "com.tikke.desktop",
     "productName": "Tikke",
+    "copyright": "Copyright © 2024 Tikke",
+    "icon": "build/icon.png",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
+    "files": [
+      "out/**/*",
+      "index.html",
+      "!**/*.map"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/sql.js/dist/sql-wasm.wasm",
+        "to": "sql-wasm.wasm"
+      },
+      {
+        "from": "public/overlays",
+        "to": "overlays"
+      }
+    ],
     "win": {
-      "target": "nsis"
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Tikke",
+      "installerHeaderIcon": "build/icon.png"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "BNAENTK",
+      "repo": "tikke"
     }
   }
 }

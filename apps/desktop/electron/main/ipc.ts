@@ -1,4 +1,6 @@
-import { ipcMain, IpcMainInvokeEvent, BrowserWindow, shell } from "electron";
+import { ipcMain, IpcMainInvokeEvent, BrowserWindow, shell, dialog, app } from "electron";
+import { randomUUID } from "crypto";
+import { checkForUpdates, downloadUpdate, installUpdate } from "../services/updater";
 import { getSetting, setSetting, getAllSettings } from "../services/settings";
 import { getDb } from "../services/db";
 import {
@@ -9,9 +11,15 @@ import {
   getSupabaseClient,
 } from "../services/supabase";
 import { saveSession, clearSession } from "../services/session-store";
+import { tikLiveService } from "../services/tiklive";
+import { soundService } from "../services/sound-service";
+import { overlayServer, type OverlayMessage } from "../services/overlay-server";
+import { overlayRulesService, type OverlayRule } from "../services/overlay-rules-service";
+import { commandService, type Command } from "../services/command-service";
 import type { AppSettings } from "../services/settings";
 import type { TikkeEvent } from "@tikke/shared";
 import type { Session } from "../services/supabase";
+import type { SoundFile, SoundRule } from "../services/sound-service";
 
 const TIKKE_REDIRECT = "tikke://auth/callback";
 
@@ -53,6 +61,11 @@ export function registerIpcHandlers(
     getDb().logEvent(id, type, payload);
   });
 
+  ipcMain.handle("tikke:db:getRecentEvents", (_e: IpcMainInvokeEvent, limit: unknown) => {
+    const n = typeof limit === "number" && limit > 0 ? Math.min(limit, 1000) : 200;
+    return getDb().getRecentEvents(n);
+  });
+
   // ── Auth ──────────────────────────────────────────────────────────────────
   ipcMain.handle("tikke:auth:signIn", async () => {
     if (!isSupabaseConfigured()) {
@@ -89,6 +102,156 @@ export function registerIpcHandlers(
     return getProfile(userId);
   });
 
+  // ── TikTok LIVE ───────────────────────────────────────────────────────────
+  ipcMain.handle("tikke:live:connect", async (_e: IpcMainInvokeEvent, username: unknown) => {
+    if (typeof username !== "string" || !username.trim()) {
+      return { error: "유효한 사용자 이름을 입력하세요." };
+    }
+    try {
+      await tikLiveService.connect(username);
+      return { ok: true };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  ipcMain.handle("tikke:live:disconnect", async () => {
+    await tikLiveService.disconnect();
+  });
+
+  ipcMain.handle("tikke:live:getStatus", () => ({
+    status: tikLiveService.getStatus(),
+    username: tikLiveService.getUsername(),
+  }));
+
+  // ── Sound ─────────────────────────────────────────────────────────────────
+  ipcMain.handle("tikke:sound:listFiles", () => soundService.getFiles());
+
+  ipcMain.handle("tikke:sound:addFile", (_e: IpcMainInvokeEvent, file: unknown) => {
+    if (!isValidSoundFile(file)) return { error: "잘못된 파일 데이터입니다." };
+    return soundService.addFile(file as SoundFile);
+  });
+
+  ipcMain.handle("tikke:sound:deleteFile", (_e: IpcMainInvokeEvent, id: unknown) => {
+    if (typeof id !== "string") return;
+    soundService.removeFile(id);
+  });
+
+  ipcMain.handle("tikke:sound:updateVolume", (_e: IpcMainInvokeEvent, id: unknown, volume: unknown) => {
+    if (typeof id !== "string" || typeof volume !== "number") return;
+    soundService.updateVolume(id, volume);
+  });
+
+  ipcMain.handle("tikke:sound:listRules", () => soundService.getRules());
+
+  ipcMain.handle("tikke:sound:addRule", (_e: IpcMainInvokeEvent, rule: unknown) => {
+    if (!isValidSoundRule(rule)) return { error: "잘못된 규칙 데이터입니다." };
+    return soundService.addRule(rule as SoundRule);
+  });
+
+  ipcMain.handle("tikke:sound:deleteRule", (_e: IpcMainInvokeEvent, id: unknown) => {
+    if (typeof id !== "string") return;
+    soundService.removeRule(id);
+  });
+
+  ipcMain.handle("tikke:sound:toggleRule", (_e: IpcMainInvokeEvent, id: unknown, enabled: unknown) => {
+    if (typeof id !== "string" || typeof enabled !== "boolean") return;
+    soundService.toggleRule(id, enabled);
+  });
+
+  ipcMain.handle("tikke:sound:playFile", (_e: IpcMainInvokeEvent, id: unknown) => {
+    if (typeof id !== "string") return;
+    soundService.playFile(id);
+  });
+
+  ipcMain.handle("tikke:sound:stopAll", () => {
+    soundService.stopAll();
+  });
+
+  ipcMain.handle("tikke:sound:openDialog", async (e: IpcMainInvokeEvent) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    const result = await dialog.showOpenDialog(win ?? BrowserWindow.getAllWindows()[0], {
+      title: "사운드 파일 선택",
+      filters: [
+        { name: "오디오 파일", extensions: ["mp3", "wav", "ogg", "m4a", "flac"] },
+        { name: "모든 파일", extensions: ["*"] },
+      ],
+      properties: ["openFile", "multiSelections"],
+    });
+    if (result.canceled) return { canceled: true, paths: [] };
+    return { canceled: false, paths: result.filePaths };
+  });
+
+  ipcMain.handle("tikke:sound:newId", () => randomUUID());
+
+  // ── Overlay ───────────────────────────────────────────────────────────────
+  ipcMain.handle("tikke:overlay:getStatus", () => overlayServer.getStatus());
+  ipcMain.handle("tikke:overlay:getUrls", () => overlayServer.getUrls());
+
+  ipcMain.handle("tikke:overlay:send", (_e: IpcMainInvokeEvent, msg: unknown) => {
+    if (!isValidOverlayMessage(msg)) return { error: "잘못된 메시지 형식입니다." };
+    overlayServer.broadcast(msg as OverlayMessage);
+  });
+
+  // ── Overlay Rules ─────────────────────────────────────────────────────────
+  ipcMain.handle("tikke:overlayRules:list", () => overlayRulesService.getRules());
+
+  ipcMain.handle("tikke:overlayRules:add", (_e: IpcMainInvokeEvent, rule: unknown) => {
+    if (!isValidOverlayRule(rule)) return { error: "잘못된 규칙 데이터입니다." };
+    overlayRulesService.addRule(rule as OverlayRule);
+    return {};
+  });
+
+  ipcMain.handle("tikke:overlayRules:delete", (_e: IpcMainInvokeEvent, id: unknown) => {
+    if (typeof id === "string") overlayRulesService.removeRule(id);
+  });
+
+  ipcMain.handle("tikke:overlayRules:toggle", (_e: IpcMainInvokeEvent, id: unknown, enabled: unknown) => {
+    if (typeof id === "string" && typeof enabled === "boolean") overlayRulesService.toggleRule(id, enabled);
+  });
+
+  ipcMain.handle("tikke:overlayRules:newId", () => randomUUID());
+
+  // ── Commands ──────────────────────────────────────────────────────────────
+  ipcMain.handle("tikke:commands:list", () => commandService.getCommands());
+  ipcMain.handle("tikke:commands:logs", () => commandService.getRecentLogs());
+
+  ipcMain.handle("tikke:commands:add", (_e: IpcMainInvokeEvent, cmd: unknown) => {
+    if (!isValidCommand(cmd)) return { error: "잘못된 명령어 데이터입니다." };
+    return commandService.addCommand(cmd as Command);
+  });
+
+  ipcMain.handle("tikke:commands:update", (_e: IpcMainInvokeEvent, cmd: unknown) => {
+    if (!isValidCommand(cmd)) return { error: "잘못된 명령어 데이터입니다." };
+    commandService.updateCommand(cmd as Command);
+    return {};
+  });
+
+  ipcMain.handle("tikke:commands:delete", (_e: IpcMainInvokeEvent, id: unknown) => {
+    if (typeof id === "string") commandService.removeCommand(id);
+  });
+
+  ipcMain.handle("tikke:commands:toggle", (_e: IpcMainInvokeEvent, id: unknown, enabled: unknown) => {
+    if (typeof id === "string" && typeof enabled === "boolean") commandService.toggleCommand(id, enabled);
+  });
+
+  ipcMain.handle("tikke:commands:newId", () => randomUUID());
+
+  // ── App / Updater ─────────────────────────────────────────────────────────
+  ipcMain.handle("tikke:app:getVersion", () => app.getVersion());
+
+  ipcMain.handle("tikke:updater:checkForUpdates", () => {
+    checkForUpdates();
+  });
+
+  ipcMain.handle("tikke:updater:downloadUpdate", () => {
+    downloadUpdate();
+  });
+
+  ipcMain.handle("tikke:updater:installUpdate", () => {
+    installUpdate();
+  });
+
   // ── Window ────────────────────────────────────────────────────────────────
   ipcMain.handle("tikke:window:minimize", (e: IpcMainInvokeEvent) => {
     BrowserWindow.fromWebContents(e.sender)?.minimize();
@@ -105,6 +268,12 @@ export function registerIpcHandlers(
   });
 }
 
+function isValidOverlayMessage(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false;
+  const m = raw as Record<string, unknown>;
+  return typeof m.type === "string";
+}
+
 function isValidEvent(raw: unknown): boolean {
   if (!raw || typeof raw !== "object") return false;
   const e = raw as Record<string, unknown>;
@@ -112,5 +281,54 @@ function isValidEvent(raw: unknown): boolean {
     typeof e.id === "string" &&
     typeof e.type === "string" &&
     typeof e.timestamp === "number"
+  );
+}
+
+function isValidSoundFile(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false;
+  const f = raw as Record<string, unknown>;
+  return (
+    typeof f.id === "string" &&
+    typeof f.name === "string" &&
+    typeof f.filePath === "string" &&
+    typeof f.volume === "number" &&
+    typeof f.createdAt === "number"
+  );
+}
+
+function isValidSoundRule(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false;
+  const r = raw as Record<string, unknown>;
+  return (
+    typeof r.id === "string" &&
+    typeof r.eventType === "string" &&
+    typeof r.soundId === "string" &&
+    typeof r.enabled === "boolean" &&
+    typeof r.createdAt === "number"
+  );
+}
+
+function isValidOverlayRule(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false;
+  const r = raw as Record<string, unknown>;
+  return (
+    typeof r.id === "string" &&
+    typeof r.triggerType === "string" &&
+    typeof r.overlayType === "string" &&
+    typeof r.enabled === "boolean" &&
+    typeof r.createdAt === "number"
+  );
+}
+
+function isValidCommand(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false;
+  const c = raw as Record<string, unknown>;
+  return (
+    typeof c.id === "string" &&
+    typeof c.command === "string" &&
+    typeof c.actionType === "string" &&
+    typeof c.cooldownSeconds === "number" &&
+    typeof c.enabled === "boolean" &&
+    typeof c.createdAt === "number"
   );
 }
