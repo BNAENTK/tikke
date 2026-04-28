@@ -21,7 +21,6 @@ import type { TikkeEvent } from "@tikke/shared";
 import type { Session } from "../services/supabase";
 import type { SoundFile, SoundRule } from "../services/sound-service";
 
-const TIKKE_REDIRECT = "tikke://auth/callback";
 
 let mockEventCallback: ((event: TikkeEvent) => void) | null = null;
 let pushSession: ((session: Session | null) => void) | null = null;
@@ -72,8 +71,9 @@ export function registerIpcHandlers(
       return { error: "Supabase 환경변수가 설정되지 않았습니다. .env 파일에 VITE_SUPABASE_URL과 VITE_SUPABASE_ANON_KEY를 입력하세요." };
     }
     try {
-      const url = await signInWithGoogle(TIKKE_REDIRECT);
-      await shell.openExternal(url);
+      const session = await signInWithGoogle();
+      saveSession(session);
+      pushSession?.(session);
       return { ok: true };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

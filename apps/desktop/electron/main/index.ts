@@ -1,7 +1,7 @@
 import { app, BrowserWindow, shell, protocol, net } from "electron";
 import { join, resolve } from "path";
 import { registerIpcHandlers } from "./ipc";
-import { exchangeCodeForSession, restoreSession, isSupabaseConfigured } from "../services/supabase";
+import { restoreSession, isSupabaseConfigured } from "../services/supabase";
 import { saveSession, loadStoredTokens, clearSession } from "../services/session-store";
 import { initDb, closeDb, getDb } from "../services/db";
 import { tikLiveService } from "../services/tiklive";
@@ -60,18 +60,6 @@ function createWindow(): void {
     mainWindow.webContents.openDevTools({ mode: "detach" });
   } else {
     mainWindow.loadFile(join(__dirname, "../../index.html"));
-  }
-}
-
-async function handleAuthCallback(url: string): Promise<void> {
-  if (!url.startsWith("tikke://auth/callback")) return;
-  try {
-    const session = await exchangeCodeForSession(url);
-    saveSession(session);
-    pushSessionToRenderer(session);
-  } catch (err) {
-    console.error("[auth] Callback error:", err);
-    pushSessionToRenderer(null);
   }
 }
 
@@ -183,17 +171,11 @@ app.whenReady().then(async () => {
   });
 });
 
-app.on("second-instance", (_event, argv) => {
-  const url = argv.find((a) => a.startsWith("tikke://"));
-  if (url) void handleAuthCallback(url);
+app.on("second-instance", () => {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
   }
-});
-
-app.on("open-url", (_event, url) => {
-  void handleAuthCallback(url);
 });
 
 app.on("window-all-closed", () => {
