@@ -9,6 +9,9 @@ type TikkeWindow = {
       getAll: () => Promise<Record<string, unknown>>;
       set: (key: string, value: unknown) => Promise<void>;
     };
+    tts?: {
+      onSpeak: (cb: (payload: { text: string }) => void) => () => void;
+    };
   };
 };
 
@@ -184,6 +187,24 @@ export function useTTSEngine(): void {
       useTTSStore.getState().setLoaded(true);
     });
   }, []);
+
+  // Receive TTS speak requests from main process (e.g. command engine)
+  useEffect(() => {
+    const tikke = (window as unknown as TikkeWindow).tikke;
+    if (!tikke?.tts?.onSpeak) return;
+    return tikke.tts.onSpeak(({ text }) => {
+      const cfg = configRef.current;
+      if (!cfg.enabled) return;
+      const item: TTSQueueItem = {
+        id: `cmd_${Date.now()}`,
+        text,
+        eventType: "command",
+        timestamp: Date.now(),
+      };
+      useTTSStore.getState().enqueue(item);
+      processQueue();
+    });
+  }, [processQueue]);
 
   // Expose stop/clear globally via store
   useEffect(() => {

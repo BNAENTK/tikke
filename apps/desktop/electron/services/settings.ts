@@ -31,6 +31,27 @@ export interface AppSettings {
   ttsGiftMinDiamonds: number;
   ttsMaxTextLength: number;
   ttsProfanityFilter: boolean;
+
+  // Translation overlay
+  translationProvider: "google" | "libre" | "papago";
+  translationShowOriginal: boolean;
+  translationLangEn: boolean;
+  translationLangJa: boolean;
+  translationLangZhCN: boolean;
+  translationFontSizeKo: number;
+  translationFontSizeEn: number;
+  translationFontSizeJa: number;
+  translationFontSizeZhCN: number;
+  translationColorKo: string;
+  translationColorEn: string;
+  translationColorJa: string;
+  translationColorZhCN: string;
+  translationStrokeWidth: number;
+  translationShadowBlur: number;
+  translationShadowColor: string;
+  translationDisplayTimeoutMs: number;
+  translationLibreUrl: string;
+  translationPapagoProxyUrl: string;
 }
 
 const DEFAULTS: AppSettings = {
@@ -62,6 +83,26 @@ const DEFAULTS: AppSettings = {
   ttsGiftMinDiamonds: 0,
   ttsMaxTextLength: 100,
   ttsProfanityFilter: false,
+
+  translationProvider: "google",
+  translationShowOriginal: true,
+  translationLangEn: true,
+  translationLangJa: true,
+  translationLangZhCN: true,
+  translationFontSizeKo: 28,
+  translationFontSizeEn: 24,
+  translationFontSizeJa: 22,
+  translationFontSizeZhCN: 22,
+  translationColorKo: "#FFFFFF",
+  translationColorEn: "#A7F3D0",
+  translationColorJa: "#BAE6FD",
+  translationColorZhCN: "#FDE68A",
+  translationStrokeWidth: 2,
+  translationShadowBlur: 6,
+  translationShadowColor: "#000000",
+  translationDisplayTimeoutMs: 10000,
+  translationLibreUrl: "https://libretranslate.com",
+  translationPapagoProxyUrl: "",
 };
 
 export function getSetting<K extends keyof AppSettings>(key: K): AppSettings[K] {

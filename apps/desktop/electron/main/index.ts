@@ -122,6 +122,22 @@ app.whenReady().then(async () => {
   });
 
   await initDb();
+
+  // Restore session before creating window so renderer can call getSession()
+  // synchronously on mount and receive the already-set session.
+  let restoredSession: Session | null = null;
+  if (isSupabaseConfigured()) {
+    const stored = loadStoredTokens();
+    if (stored) {
+      restoredSession = await restoreSession(stored.accessToken, stored.refreshToken);
+      if (restoredSession) {
+        saveSession(restoredSession);
+      } else {
+        clearSession();
+      }
+    }
+  }
+
   setupEventPipeline();
   createWindow();
 
@@ -154,18 +170,9 @@ app.whenReady().then(async () => {
     mainWindow?.webContents.send("tikke:live:status", { status, error });
   });
 
-  // 세션 복원
-  if (isSupabaseConfigured()) {
-    const stored = loadStoredTokens();
-    if (stored) {
-      const session = await restoreSession(stored.accessToken, stored.refreshToken);
-      if (session) {
-        saveSession(session);
-        mainWindow?.webContents.once("did-finish-load", () => pushSessionToRenderer(session));
-      } else {
-        clearSession();
-      }
-    }
+  // Push restored session after renderer finishes loading
+  if (restoredSession) {
+    mainWindow?.webContents.once("did-finish-load", () => pushSessionToRenderer(restoredSession));
   }
 
   app.on("activate", () => {

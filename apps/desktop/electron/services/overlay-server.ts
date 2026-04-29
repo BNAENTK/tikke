@@ -1,14 +1,28 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
 import { readFileSync, existsSync } from "fs";
 import { join, extname } from "path";
+import { networkInterfaces } from "os";
 import { app } from "electron";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { TikkeEvent } from "@tikke/shared";
 
+function getLocalIP(): string {
+  const nets = networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of (nets[name] ?? [])) {
+      if (net.family === "IPv4" && !net.internal) {
+        return net.address;
+      }
+    }
+  }
+  return "127.0.0.1";
+}
+
 export type OverlayMessageType =
   | "chat" | "gift" | "like" | "follow" | "member"
   | "share" | "subscribe" | "streamEnd"
-  | "marquee" | "video" | "image" | "fireworks" | "clear";
+  | "marquee" | "video" | "image" | "fireworks" | "clear"
+  | "translation";
 
 export interface OverlayMessage {
   type: OverlayMessageType;
@@ -103,7 +117,7 @@ class OverlayServer {
       res.end(readFileSync(filePath));
     });
 
-    this.httpServer.listen(this.httpPort, "127.0.0.1", () => {
+    this.httpServer.listen(this.httpPort, "0.0.0.0", () => {
       // listening
     });
 
@@ -113,7 +127,7 @@ class OverlayServer {
   }
 
   private startWS(): void {
-    this.wss = new WebSocketServer({ port: this.wsPort, host: "127.0.0.1" });
+    this.wss = new WebSocketServer({ port: this.wsPort, host: "0.0.0.0" });
 
     this.wss.on("connection", (ws: WebSocket) => {
       this.clients.add(ws);
@@ -175,7 +189,8 @@ class OverlayServer {
   }
 
   getUrls(): Record<string, string> {
-    const base = `http://localhost:${this.httpPort}/overlay`;
+    const ip = getLocalIP();
+    const base = `http://${ip}:${this.httpPort}/overlay`;
     return {
       main: base,
       chat: `${base}/chat`,
@@ -183,6 +198,7 @@ class OverlayServer {
       marquee: `${base}/marquee`,
       video: `${base}/video`,
       fireworks: `${base}/fireworks`,
+      translation: `${base}/translation`,
     };
   }
 }

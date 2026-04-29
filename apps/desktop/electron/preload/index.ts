@@ -156,6 +156,13 @@ contextBridge.exposeInMainWorld("tikke", {
     maximize: () => ipcRenderer.invoke("tikke:window:maximize"),
     close: () => ipcRenderer.invoke("tikke:window:close"),
   },
+  tts: {
+    onSpeak: (callback: (payload: { text: string }) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, payload: { text: string }) => callback(payload);
+      ipcRenderer.on("tikke:tts:speak", handler);
+      return () => ipcRenderer.removeListener("tikke:tts:speak", handler);
+    },
+  },
   telegram: {
     test: (text?: string): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke("tikke:telegram:test", text ?? ""),

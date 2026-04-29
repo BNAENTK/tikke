@@ -13,6 +13,7 @@ import { Connection } from "../pages/Connection";
 import { ChatViewer } from "../pages/ChatViewer";
 import { GiftViewer } from "../pages/GiftViewer";
 import { AppSettings } from "../pages/AppSettings";
+import { TranslationOverlay } from "../pages/TranslationOverlay";
 import { Login } from "../pages/Login";
 import { useEventStore } from "../stores/eventStore";
 import { useAuthStore } from "../stores/authStore";
@@ -131,6 +132,7 @@ export function App(): React.ReactElement {
       case "gifts": return <GiftViewer />;
       case "sounds": return <SoundLibrary />;
       case "tts": return <TTSSettings />;
+      case "translation": return <TranslationOverlay />;
       case "overlays": return <OverlaySettings />;
       case "commands": return <CommandSettings />;
       case "settings": return <AppSettings />;
@@ -145,16 +147,41 @@ export function App(): React.ReactElement {
         style={{
           height: "100vh",
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
           background: "var(--bg)",
-          color: "var(--primary)",
-          fontSize: 28,
-          fontWeight: 800,
-          letterSpacing: -0.5,
+          gap: 16,
         }}
       >
-        Tikke
+        <div
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: 13,
+            background: "linear-gradient(135deg, var(--primary) 0%, #0080ff 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 26,
+            fontWeight: 900,
+            color: "#000",
+            boxShadow: "0 0 32px rgba(0,242,234,0.35)",
+          }}
+        >
+          T
+        </div>
+        <span
+          style={{
+            fontSize: 22,
+            fontWeight: 800,
+            color: "var(--text)",
+            letterSpacing: -0.5,
+          }}
+        >
+          Tikke
+        </span>
+        <span style={{ fontSize: 12, color: "var(--text-dim)" }}>불러오는 중...</span>
       </div>
     );
   }

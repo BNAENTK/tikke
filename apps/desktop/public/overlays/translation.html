@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tikke Translation Overlay</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: transparent !important;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #container {
+      position: fixed;
+      bottom: 5vh;
+      left: 4vw;
+      right: 4vw;
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    #subtitle-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 14px 22px;
+      background: rgba(0, 0, 0, 0.44);
+      border-radius: 10px;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      max-width: 90vw;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+
+    #subtitle-wrap.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .line {
+      font-weight: 700;
+      line-height: 1.35;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      font-family: -apple-system, "Noto Sans KR", "Malgun Gothic", sans-serif;
+    }
+
+    .line[hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="subtitle-wrap">
+      <div class="line" id="line-ko"></div>
+      <div class="line" id="line-en"></div>
+      <div class="line" id="line-ja"></div>
+      <div class="line" id="line-zhCN"></div>
+    </div>
+  </div>
+
+  <script>
+    const FLAGS = { ko: '🇰🇷', en: '🇺🇸', ja: '🇯🇵', 'zh-CN': '🇨🇳' };
+    const LINE_IDS = { ko: 'line-ko', en: 'line-en', ja: 'line-ja', 'zh-CN': 'line-zhCN' };
+
+    function esc(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function applyLineStyle(el, style, lang) {
+      const sz = style.fontSizes?.[lang] ?? 24;
+      const color = style.colors?.[lang] ?? '#fff';
+      const shadow = style.shadowBlur > 0
+        ? `0 0 ${style.shadowBlur}px ${style.shadowColor}, 1px 1px ${Math.ceil(style.shadowBlur / 2)}px ${style.shadowColor}`
+        : 'none';
+      el.style.fontSize = sz + 'px';
+      el.style.color = color;
+      el.style.textShadow = shadow;
+      el.style.webkitTextStroke = (style.strokeWidth > 0)
+        ? `${style.strokeWidth}px ${style.shadowColor ?? '#000'}`
+        : '';
+      el.style.letterSpacing = (lang === 'ja' || lang === 'zh-CN') ? '0.04em' : 'normal';
+    }
+
+    let hideTimer = null;
+
+    function render(payload) {
+      const { subtitle, style } = payload;
+      const wrap = document.getElementById('subtitle-wrap');
+
+      // Korean original
+      const koEl = document.getElementById('line-ko');
+      if (style.showOriginal && subtitle.original) {
+        koEl.innerHTML = `<span style="font-size:0.65em;opacity:0.8">${FLAGS.ko}</span> ${esc(subtitle.original)}`;
+        applyLineStyle(koEl, style, 'ko');
+        koEl.hidden = false;
+      } else {
+        koEl.hidden = true;
+      }
+
+      // Translation lines
+      const targets = ['en', 'ja', 'zh-CN'];
+      for (const lang of targets) {
+        const el = document.getElementById(LINE_IDS[lang]);
+        const text = subtitle.translations?.[lang];
+        if (style.enabledLangs?.[lang] && text) {
+          el.innerHTML = `<span style="font-size:0.65em;opacity:0.8">${FLAGS[lang]}</span> ${esc(text)}`;
+          applyLineStyle(el, style, lang);
+          el.hidden = false;
+        } else {
+          el.hidden = true;
+        }
+      }
+
+      // Show with transition
+      wrap.classList.add('visible');
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(
+        () => wrap.classList.remove('visible'),
+        style.displayTimeoutMs ?? 10000
+      );
+    }
+
+    function connect() {
+      const ws = new WebSocket(`ws://${window.location.hostname}:18182`);
+
+      ws.onmessage = function(e) {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'translation' && msg.payload) {
+            render(msg.payload);
+          } else if (msg.type === 'clear') {
+            document.getElementById('subtitle-wrap').classList.remove('visible');
+            clearTimeout(hideTimer);
+          }
+        } catch (err) {
+          console.error('[translation overlay]', err);
+        }
+      };
+
+      ws.onclose = function() { setTimeout(connect, 2000); };
+      ws.onerror = function() { ws.close(); };
+    }
+
+    connect();
+  </script>
+</body>
+</html>

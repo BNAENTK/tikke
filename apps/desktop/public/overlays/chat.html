@@ -90,7 +90,7 @@ function handleMessage(msg) {
 
 let ws;
 function connect() {
-  ws = new WebSocket('ws://localhost:18182');
+  ws = new WebSocket(`ws://${window.location.hostname}:18182`);
   ws.onmessage = e => { try { handleMessage(JSON.parse(e.data)); } catch {} };
   ws.onclose = () => setTimeout(connect, 2000);
   ws.onerror = () => ws.close();
