@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, type MutableRefObject } from "react";
 import { useTTSStore, type TTSConfig, type TTSQueueItem } from "../stores/ttsStore";
 import type { TikkeEvent } from "@tikke/shared";
 
@@ -11,6 +11,18 @@ type TikkeWindow = {
     };
     tts?: {
       onSpeak: (cb: (payload: { text: string }) => void) => () => void;
+      synthesize: (req: {
+        provider: string;
+        text: string;
+        googleApiKey?: string;
+        googleVoiceName?: string;
+        googleLanguageCode?: string;
+        elevenLabsApiKey?: string;
+        elevenLabsVoiceId?: string;
+        naverClientId?: string;
+        naverClientSecret?: string;
+        naverSpeaker?: string;
+      }) => Promise<{ audioBase64?: string; error?: string }>;
     };
   };
 };
@@ -73,8 +85,8 @@ export function useTTSEngine(): void {
   const isSpeakingRef = useRef(false);
   const configRef = useRef<TTSConfig>(useTTSStore.getState().config);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Keep configRef in sync without causing re-renders
   useEffect(() => {
     return useTTSStore.subscribe((state) => {
       configRef.current = state.config;
@@ -101,35 +113,17 @@ export function useTTSEngine(): void {
     let text = item.text;
     if (cfg.profanityFilter) text = applyProfanityFilter(text);
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = cfg.rate;
-    utterance.pitch = cfg.pitch;
-    utterance.volume = cfg.volume;
-    utterance.lang = "ko-KR";
-
-    if (cfg.voiceName) {
-      const voices = speechSynthesis.getVoices();
-      const voice = voices.find((v) => v.name === cfg.voiceName);
-      if (voice) utterance.voice = voice;
+    if (cfg.provider === "webspeech") {
+      speakWebSpeech(text, cfg, utteranceRef, isSpeakingRef, () => {
+        useTTSStore.getState().setCurrentItem(null);
+        processQueue();
+      });
+    } else {
+      void speakExternal(text, cfg, audioRef, isSpeakingRef, () => {
+        useTTSStore.getState().setCurrentItem(null);
+        processQueue();
+      });
     }
-
-    utterance.onend = () => {
-      isSpeakingRef.current = false;
-      useTTSStore.getState().setCurrentItem(null);
-      processQueue();
-    };
-
-    utterance.onerror = (e) => {
-      if (e.error !== "interrupted") {
-        console.error("[tts] utterance error:", e.error);
-      }
-      isSpeakingRef.current = false;
-      useTTSStore.getState().setCurrentItem(null);
-      processQueue();
-    };
-
-    utteranceRef.current = utterance;
-    speechSynthesis.speak(utterance);
   }, []);
 
   // Subscribe to TikTok events
@@ -167,10 +161,19 @@ export function useTTSEngine(): void {
       const s = useTTSStore.getState();
       s.setConfig({
         enabled: Boolean(all["ttsEnabled"] ?? true),
+        provider: (String(all["ttsProvider"] ?? "webspeech")) as import("../stores/ttsStore").TTSProvider,
         voiceName: String(all["ttsVoiceName"] ?? ""),
         rate: Number(all["ttsRate"] ?? 1.0),
         pitch: Number(all["ttsPitch"] ?? 1.0),
         volume: Number(all["ttsVolume"] ?? 1.0),
+        googleApiKey: String(all["ttsGoogleApiKey"] ?? ""),
+        googleVoiceName: String(all["ttsGoogleVoiceName"] ?? "ko-KR-Standard-A"),
+        googleLanguageCode: String(all["ttsGoogleLanguageCode"] ?? "ko-KR"),
+        elevenLabsApiKey: String(all["ttsElevenLabsApiKey"] ?? ""),
+        elevenLabsVoiceId: String(all["ttsElevenLabsVoiceId"] ?? ""),
+        naverClientId: String(all["ttsNaverClientId"] ?? ""),
+        naverClientSecret: String(all["ttsNaverClientSecret"] ?? ""),
+        naverSpeaker: String(all["ttsNaverSpeaker"] ?? "nara"),
         readUsername: Boolean(all["ttsReadUsername"] ?? true),
         eventChat: Boolean(all["ttsEventChat"] ?? true),
         eventGift: Boolean(all["ttsEventGift"] ?? true),
@@ -208,9 +211,12 @@ export function useTTSEngine(): void {
 
   // Expose stop/clear globally via store
   useEffect(() => {
-    // Stop all: cancel synthesis + clear queue
-    const unsubStop = (): void => {
+    const handler = (): void => {
       speechSynthesis.cancel();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
       isSpeakingRef.current = false;
       utteranceRef.current = null;
       const state = useTTSStore.getState();
@@ -218,12 +224,90 @@ export function useTTSEngine(): void {
       state.setSpeaking(false);
       state.setCurrentItem(null);
     };
-
-    // Make stop accessible from outside hook via a custom event
-    const handler = () => unsubStop();
     window.addEventListener("tikke:tts:stop", handler);
     return () => window.removeEventListener("tikke:tts:stop", handler);
   }, []);
+}
+
+// ── Provider implementations ──────────────────────────────────────────────────
+
+function speakWebSpeech(
+  text: string,
+  cfg: TTSConfig,
+  utteranceRef: MutableRefObject<SpeechSynthesisUtterance | null>,
+  isSpeakingRef: MutableRefObject<boolean>,
+  onDone: () => void,
+): void {
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = cfg.rate;
+  utterance.pitch = cfg.pitch;
+  utterance.volume = cfg.volume;
+  utterance.lang = "ko-KR";
+
+  if (cfg.voiceName) {
+    const voice = speechSynthesis.getVoices().find((v) => v.name === cfg.voiceName);
+    if (voice) utterance.voice = voice;
+  }
+
+  utterance.onend = () => { isSpeakingRef.current = false; onDone(); };
+  utterance.onerror = (e) => {
+    if (e.error !== "interrupted") console.error("[tts] utterance error:", e.error);
+    isSpeakingRef.current = false;
+    onDone();
+  };
+
+  utteranceRef.current = utterance;
+  speechSynthesis.speak(utterance);
+}
+
+async function speakExternal(
+  text: string,
+  cfg: TTSConfig,
+  audioRef: MutableRefObject<HTMLAudioElement | null>,
+  isSpeakingRef: MutableRefObject<boolean>,
+  onDone: () => void,
+): Promise<void> {
+  const tikke = (window as unknown as TikkeWindow).tikke;
+  if (!tikke?.tts?.synthesize) {
+    console.error("[tts] synthesize IPC not available");
+    isSpeakingRef.current = false;
+    onDone();
+    return;
+  }
+
+  const result = await tikke.tts.synthesize({
+    provider: cfg.provider,
+    text,
+    googleApiKey: cfg.googleApiKey,
+    googleVoiceName: cfg.googleVoiceName,
+    googleLanguageCode: cfg.googleLanguageCode,
+    elevenLabsApiKey: cfg.elevenLabsApiKey,
+    elevenLabsVoiceId: cfg.elevenLabsVoiceId,
+    naverClientId: cfg.naverClientId,
+    naverClientSecret: cfg.naverClientSecret,
+    naverSpeaker: cfg.naverSpeaker,
+  });
+
+  if (result.error || !result.audioBase64) {
+    console.error("[tts] synthesize error:", result.error);
+    isSpeakingRef.current = false;
+    onDone();
+    return;
+  }
+
+  const binary = atob(result.audioBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], { type: "audio/mpeg" });
+  const url = URL.createObjectURL(blob);
+
+  const audio = new Audio(url);
+  audio.volume = cfg.volume;
+  audioRef.current = audio;
+
+  audio.onended = () => { URL.revokeObjectURL(url); isSpeakingRef.current = false; onDone(); };
+  audio.onerror = () => { URL.revokeObjectURL(url); isSpeakingRef.current = false; onDone(); };
+  audio.play().catch(() => { URL.revokeObjectURL(url); isSpeakingRef.current = false; onDone(); });
 }
 
 export function stopTTS(): void {

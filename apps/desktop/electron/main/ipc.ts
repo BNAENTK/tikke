@@ -239,6 +239,11 @@ export function registerIpcHandlers(
 
   ipcMain.handle("tikke:commands:newId", () => randomUUID());
 
+  // ── TTS Synthesize ────────────────────────────────────────────────────────
+  ipcMain.handle("tikke:tts:synthesize", async (_e: IpcMainInvokeEvent, req: unknown) => {
+    return synthesizeExternalTTS(req);
+  });
+
   // ── Cloud Sync ────────────────────────────────────────────────────────────
   ipcMain.handle("tikke:cloud:push", async () => pushSettingsToCloud());
   ipcMain.handle("tikke:cloud:pull", async () => pullSettingsFromCloud());
@@ -343,4 +348,123 @@ function isValidCommand(raw: unknown): boolean {
     typeof c.enabled === "boolean" &&
     typeof c.createdAt === "number"
   );
+}
+
+// ── External TTS Synthesis ────────────────────────────────────────────────────
+
+interface SynthesizeRequest {
+  provider: string;
+  text: string;
+  googleApiKey?: string;
+  googleVoiceName?: string;
+  googleLanguageCode?: string;
+  elevenLabsApiKey?: string;
+  elevenLabsVoiceId?: string;
+  naverClientId?: string;
+  naverClientSecret?: string;
+  naverSpeaker?: string;
+}
+
+async function synthesizeExternalTTS(req: unknown): Promise<{ audioBase64?: string; error?: string }> {
+  if (!req || typeof req !== "object") return { error: "Invalid request" };
+  const r = req as SynthesizeRequest;
+  if (!r.text?.trim()) return { error: "Empty text" };
+
+  try {
+    if (r.provider === "google") return await synthesizeGoogle(r);
+    if (r.provider === "elevenlabs") return await synthesizeElevenLabs(r);
+    if (r.provider === "naver") return await synthesizeNaver(r);
+    return { error: "Unknown provider" };
+  } catch (e) {
+    return { error: String(e) };
+  }
+}
+
+async function synthesizeGoogle(r: SynthesizeRequest): Promise<{ audioBase64?: string; error?: string }> {
+  if (!r.googleApiKey) return { error: "Google API 키가 없습니다." };
+  const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${r.googleApiKey}`;
+  const body = JSON.stringify({
+    input: { text: r.text },
+    voice: {
+      languageCode: r.googleLanguageCode ?? "ko-KR",
+      name: r.googleVoiceName ?? "ko-KR-Standard-A",
+    },
+    audioConfig: { audioEncoding: "MP3" },
+  });
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => res.statusText);
+    return { error: `Google TTS 오류: ${err}` };
+  }
+
+  const json = await res.json() as { audioContent?: string };
+  if (!json.audioContent) return { error: "Google TTS: audioContent 없음" };
+  return { audioBase64: json.audioContent };
+}
+
+async function synthesizeElevenLabs(r: SynthesizeRequest): Promise<{ audioBase64?: string; error?: string }> {
+  if (!r.elevenLabsApiKey) return { error: "ElevenLabs API 키가 없습니다." };
+  if (!r.elevenLabsVoiceId) return { error: "ElevenLabs Voice ID가 없습니다." };
+
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${r.elevenLabsVoiceId}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "xi-api-key": r.elevenLabsApiKey,
+    },
+    body: JSON.stringify({
+      text: r.text,
+      model_id: "eleven_multilingual_v2",
+      voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => res.statusText);
+    return { error: `ElevenLabs 오류: ${err}` };
+  }
+
+  const buffer = await res.arrayBuffer();
+  const base64 = Buffer.from(buffer).toString("base64");
+  return { audioBase64: base64 };
+}
+
+async function synthesizeNaver(r: SynthesizeRequest): Promise<{ audioBase64?: string; error?: string }> {
+  if (!r.naverClientId) return { error: "네이버 Client ID가 없습니다." };
+  if (!r.naverClientSecret) return { error: "네이버 Client Secret이 없습니다." };
+
+  const params = new URLSearchParams({
+    text: r.text.slice(0, 2000),
+    speaker: r.naverSpeaker ?? "nara",
+    speed: "0",
+    volume: "0",
+    pitch: "0",
+    format: "mp3",
+  });
+
+  const res = await fetch("https://naveropenapi.apigw.ntruss.com/tts-premium/v1/tts", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-NCP-APIGW-API-KEY-ID": r.naverClientId,
+      "X-NCP-APIGW-API-KEY": r.naverClientSecret,
+    },
+    body: params.toString(),
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => res.statusText);
+    return { error: `네이버 클로바 오류: ${err}` };
+  }
+
+  const buffer = await res.arrayBuffer();
+  const base64 = Buffer.from(buffer).toString("base64");
+  return { audioBase64: base64 };
 }

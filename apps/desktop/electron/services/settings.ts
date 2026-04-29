@@ -17,10 +17,19 @@ export interface AppSettings {
 
   // TTS
   ttsEnabled: boolean;
+  ttsProvider: "webspeech" | "google" | "elevenlabs" | "naver";
   ttsVoiceName: string;
   ttsRate: number;
   ttsPitch: number;
   ttsVolume: number;
+  ttsGoogleApiKey: string;
+  ttsGoogleVoiceName: string;
+  ttsGoogleLanguageCode: string;
+  ttsElevenLabsApiKey: string;
+  ttsElevenLabsVoiceId: string;
+  ttsNaverClientId: string;
+  ttsNaverClientSecret: string;
+  ttsNaverSpeaker: string;
   ttsReadUsername: boolean;
   ttsEventChat: boolean;
   ttsEventGift: boolean;
@@ -69,10 +78,19 @@ const DEFAULTS: AppSettings = {
   telegramGiftMinDiamonds: 0,
 
   ttsEnabled: true,
+  ttsProvider: "webspeech",
   ttsVoiceName: "",
   ttsRate: 1.0,
   ttsPitch: 1.0,
   ttsVolume: 1.0,
+  ttsGoogleApiKey: "",
+  ttsGoogleVoiceName: "ko-KR-Standard-A",
+  ttsGoogleLanguageCode: "ko-KR",
+  ttsElevenLabsApiKey: "",
+  ttsElevenLabsVoiceId: "",
+  ttsNaverClientId: "",
+  ttsNaverClientSecret: "",
+  ttsNaverSpeaker: "nara",
   ttsReadUsername: true,
   ttsEventChat: true,
   ttsEventGift: true,

@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useTTSStore, type TTSConfig } from "../stores/ttsStore";
+import { useTTSStore, type TTSConfig, type TTSProvider } from "../stores/ttsStore";
 import { stopTTS } from "../hooks/useTTSEngine";
 
 type TikkeWindow = {
   tikke?: {
     settings?: {
       set: (key: string, value: unknown) => Promise<void>;
+    };
+    tts?: {
+      synthesize: (req: Record<string, unknown>) => Promise<{ audioBase64?: string; error?: string }>;
     };
   };
 };
@@ -14,10 +17,19 @@ type TikkeWindow = {
 
 const CONFIG_KEY_MAP: Record<keyof TTSConfig, string> = {
   enabled: "ttsEnabled",
+  provider: "ttsProvider",
   voiceName: "ttsVoiceName",
   rate: "ttsRate",
   pitch: "ttsPitch",
   volume: "ttsVolume",
+  googleApiKey: "ttsGoogleApiKey",
+  googleVoiceName: "ttsGoogleVoiceName",
+  googleLanguageCode: "ttsGoogleLanguageCode",
+  elevenLabsApiKey: "ttsElevenLabsApiKey",
+  elevenLabsVoiceId: "ttsElevenLabsVoiceId",
+  naverClientId: "ttsNaverClientId",
+  naverClientSecret: "ttsNaverClientSecret",
+  naverSpeaker: "ttsNaverSpeaker",
   readUsername: "ttsReadUsername",
   eventChat: "ttsEventChat",
   eventGift: "ttsEventGift",
@@ -29,6 +41,34 @@ const CONFIG_KEY_MAP: Record<keyof TTSConfig, string> = {
   maxTextLength: "ttsMaxTextLength",
   profanityFilter: "ttsProfanityFilter",
 };
+
+const GOOGLE_VOICES: { name: string; label: string }[] = [
+  { name: "ko-KR-Standard-A", label: "Standard A — 여성" },
+  { name: "ko-KR-Standard-B", label: "Standard B — 여성" },
+  { name: "ko-KR-Standard-C", label: "Standard C — 남성" },
+  { name: "ko-KR-Standard-D", label: "Standard D — 남성" },
+  { name: "ko-KR-Wavenet-A", label: "Wavenet A — 여성 (고품질)" },
+  { name: "ko-KR-Wavenet-B", label: "Wavenet B — 여성 (고품질)" },
+  { name: "ko-KR-Wavenet-C", label: "Wavenet C — 남성 (고품질)" },
+  { name: "ko-KR-Wavenet-D", label: "Wavenet D — 남성 (고품질)" },
+  { name: "ko-KR-Neural2-A", label: "Neural2 A — 여성 (최고품질)" },
+  { name: "ko-KR-Neural2-B", label: "Neural2 B — 남성 (최고품질)" },
+  { name: "ko-KR-Neural2-C", label: "Neural2 C — 남성 (최고품질)" },
+  { name: "en-US-Neural2-F", label: "영어 Neural2 F — 여성" },
+  { name: "en-US-Neural2-D", label: "영어 Neural2 D — 남성" },
+];
+
+const NAVER_SPEAKERS: { value: string; label: string }[] = [
+  { value: "nara", label: "나라 — 여성 (기본)" },
+  { value: "nara_call", label: "나라 콜 — 여성 (선명)" },
+  { value: "jinho", label: "진호 — 남성" },
+  { value: "mijin", label: "미진 — 여성 (부드러운)" },
+  { value: "lena", label: "레나 — 여성 (활발한)" },
+  { value: "yuna", label: "유나 — 여성 (친근한)" },
+  { value: "danna", label: "다나 — 영어 여성" },
+  { value: "clara", label: "클라라 — 영어 여성" },
+  { value: "matt", label: "매트 — 영어 남성" },
+];
 
 async function saveSetting(key: keyof TTSConfig, value: unknown): Promise<void> {
   const tikke = (window as unknown as TikkeWindow).tikke;
@@ -127,10 +167,11 @@ export function TTSSettings(): React.ReactElement {
   const { config, queue, speaking, currentItem, setConfig, clearQueue } = useTTSStore();
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [testText, setTestText] = useState("안녕하세요! TTS 테스트입니다.");
+  const [testError, setTestError] = useState("");
 
   const loadVoices = useCallback(() => {
-    const v = speechSynthesis.getVoices();
-    if (v.length > 0) setVoices(v);
+    const all = speechSynthesis.getVoices();
+    if (all.length > 0) setVoices(all.filter((v) => !v.name.toLowerCase().includes("microsoft")));
   }, []);
 
   useEffect(() => {
@@ -146,16 +187,47 @@ export function TTSSettings(): React.ReactElement {
 
   async function handleTestSpeak(): Promise<void> {
     if (!testText.trim()) return;
-    const utterance = new SpeechSynthesisUtterance(testText);
-    utterance.rate = config.rate;
-    utterance.pitch = config.pitch;
-    utterance.volume = config.volume;
-    utterance.lang = "ko-KR";
-    if (config.voiceName) {
-      const voice = voices.find((v) => v.name === config.voiceName);
-      if (voice) utterance.voice = voice;
+    setTestError("");
+
+    if (config.provider === "webspeech") {
+      const utterance = new SpeechSynthesisUtterance(testText);
+      utterance.rate = config.rate;
+      utterance.pitch = config.pitch;
+      utterance.volume = config.volume;
+      utterance.lang = "ko-KR";
+      if (config.voiceName) {
+        const voice = voices.find((v) => v.name === config.voiceName);
+        if (voice) utterance.voice = voice;
+      }
+      speechSynthesis.speak(utterance);
+    } else {
+      const tikke = (window as unknown as TikkeWindow).tikke;
+      if (!tikke?.tts?.synthesize) return;
+      const result = await tikke.tts.synthesize({
+        provider: config.provider,
+        text: testText,
+        googleApiKey: config.googleApiKey,
+        googleVoiceName: config.googleVoiceName,
+        googleLanguageCode: config.googleLanguageCode,
+        elevenLabsApiKey: config.elevenLabsApiKey,
+        elevenLabsVoiceId: config.elevenLabsVoiceId,
+        naverClientId: config.naverClientId,
+        naverClientSecret: config.naverClientSecret,
+        naverSpeaker: config.naverSpeaker,
+      });
+      if (result.error) { setTestError(result.error); return; }
+      if (result.audioBase64) {
+        const binary = atob(result.audioBase64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blob = new Blob([bytes], { type: "audio/mpeg" });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.volume = config.volume;
+        audio.onended = () => URL.revokeObjectURL(url);
+        void audio.play();
+      }
     }
-    speechSynthesis.speak(utterance);
   }
 
   function handleStop(): void {
@@ -227,49 +299,168 @@ export function TTSSettings(): React.ReactElement {
         description="비활성화하면 모든 TTS 읽기가 중단됩니다"
       />
 
-      {/* Voice settings */}
-      {sectionTitle("음성 설정")}
+      {/* Provider + Voice settings */}
+      {sectionTitle("TTS 엔진")}
 
-      <div style={{ padding: "10px 14px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ padding: "10px 14px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, display: "flex", flexDirection: "column", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>음성 선택</div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>음성 엔진 선택</div>
           <select
-            value={config.voiceName}
-            onChange={(e) => void update("voiceName", e.target.value)}
+            value={config.provider}
+            onChange={(e) => void update("provider", e.target.value as TTSProvider)}
             style={{ ...inputStyle, width: "100%" }}
           >
-            <option value="">기본 음성 (시스템)</option>
-            {voices
-              .filter((v) => v.lang.startsWith("ko") || v.lang.startsWith("en"))
-              .map((v) => (
-                <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>
-              ))}
-            {voices.filter((v) => !v.lang.startsWith("ko") && !v.lang.startsWith("en")).map((v) => (
-              <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>
-            ))}
+            <option value="webspeech">🌐 웹 브라우저 (Web Speech API)</option>
+            <option value="google">Google Cloud TTS</option>
+            <option value="elevenlabs">ElevenLabs</option>
+            <option value="naver">네이버 클로바 TTS</option>
           </select>
         </div>
-        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-          {voices.length === 0 ? "음성을 불러오는 중..." : `${voices.length}개 음성 사용 가능`}
-        </div>
+
+        {/* Web Speech API */}
+        {config.provider === "webspeech" && (
+          <div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>음성 선택 (Microsoft 제외)</div>
+            <select
+              value={config.voiceName}
+              onChange={(e) => void update("voiceName", e.target.value)}
+              style={{ ...inputStyle, width: "100%" }}
+            >
+              <option value="">기본 음성</option>
+              {voices.filter((v) => v.lang.startsWith("ko") || v.lang.startsWith("en")).map((v) => (
+                <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>
+              ))}
+              {voices.filter((v) => !v.lang.startsWith("ko") && !v.lang.startsWith("en")).map((v) => (
+                <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>
+              ))}
+            </select>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+              {voices.length === 0 ? "음성 목록 로딩 중..." : `${voices.length}개 사용 가능 (Microsoft 음성 제외됨)`}
+            </div>
+          </div>
+        )}
+
+        {/* Google Cloud TTS */}
+        {config.provider === "google" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 11, color: "rgba(167,139,250,0.8)", padding: "6px 10px", background: "rgba(167,139,250,0.05)", borderRadius: 6, border: "1px solid rgba(167,139,250,0.15)" }}>
+              Google Cloud Console → Text-to-Speech API 활성화 후 API 키를 입력하세요.
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>API 키</div>
+              <input
+                type="password"
+                value={config.googleApiKey}
+                onChange={(e) => void update("googleApiKey", e.target.value)}
+                style={{ ...inputStyle, width: "100%" }}
+                placeholder="AIza..."
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>음성</div>
+              <select
+                value={config.googleVoiceName}
+                onChange={(e) => void update("googleVoiceName", e.target.value)}
+                style={{ ...inputStyle, width: "100%" }}
+              >
+                {GOOGLE_VOICES.map((v) => (
+                  <option key={v.name} value={v.name}>{v.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* ElevenLabs */}
+        {config.provider === "elevenlabs" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 11, color: "rgba(167,139,250,0.8)", padding: "6px 10px", background: "rgba(167,139,250,0.05)", borderRadius: 6, border: "1px solid rgba(167,139,250,0.15)" }}>
+              elevenlabs.io → Profile → API Key를 입력하고, Voice Library에서 Voice ID를 복사하세요.
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>API 키</div>
+              <input
+                type="password"
+                value={config.elevenLabsApiKey}
+                onChange={(e) => void update("elevenLabsApiKey", e.target.value)}
+                style={{ ...inputStyle, width: "100%" }}
+                placeholder="sk_..."
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Voice ID</div>
+              <input
+                type="text"
+                value={config.elevenLabsVoiceId}
+                onChange={(e) => void update("elevenLabsVoiceId", e.target.value)}
+                style={{ ...inputStyle, width: "100%" }}
+                placeholder="21m00Tcm4TlvDq8ikWAM"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Naver Clova TTS */}
+        {config.provider === "naver" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 11, color: "rgba(167,139,250,0.8)", padding: "6px 10px", background: "rgba(167,139,250,0.05)", borderRadius: 6, border: "1px solid rgba(167,139,250,0.15)" }}>
+              NAVER Cloud Platform → AI·NAVER API → CLOVA Voice 앱 등록 후 Client ID/Secret을 입력하세요.
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Client ID</div>
+              <input
+                type="text"
+                value={config.naverClientId}
+                onChange={(e) => void update("naverClientId", e.target.value)}
+                style={{ ...inputStyle, width: "100%" }}
+                placeholder="NAVER Client ID"
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Client Secret</div>
+              <input
+                type="password"
+                value={config.naverClientSecret}
+                onChange={(e) => void update("naverClientSecret", e.target.value)}
+                style={{ ...inputStyle, width: "100%" }}
+                placeholder="NAVER Client Secret"
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>화자</div>
+              <select
+                value={config.naverSpeaker}
+                onChange={(e) => void update("naverSpeaker", e.target.value)}
+                style={{ ...inputStyle, width: "100%" }}
+              >
+                {NAVER_SPEAKERS.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
-      <SliderRow
-        label="속도"
-        value={config.rate}
-        min={0.5} max={2.0} step={0.05}
-        displayValue={config.rate.toFixed(2)}
-        onChange={(v) => setConfig({ rate: v })}
-        onCommit={(v) => void update("rate", v)}
-      />
-      <SliderRow
-        label="음높이"
-        value={config.pitch}
-        min={0} max={2.0} step={0.05}
-        displayValue={config.pitch.toFixed(2)}
-        onChange={(v) => setConfig({ pitch: v })}
-        onCommit={(v) => void update("pitch", v)}
-      />
+      {/* 속도/음높이/볼륨은 webspeech만 */}
+      {config.provider === "webspeech" && (<>
+        <SliderRow
+          label="속도"
+          value={config.rate}
+          min={0.5} max={2.0} step={0.05}
+          displayValue={config.rate.toFixed(2)}
+          onChange={(v) => setConfig({ rate: v })}
+          onCommit={(v) => void update("rate", v)}
+        />
+        <SliderRow
+          label="음높이"
+          value={config.pitch}
+          min={0} max={2.0} step={0.05}
+          displayValue={config.pitch.toFixed(2)}
+          onChange={(v) => setConfig({ pitch: v })}
+          onCommit={(v) => void update("pitch", v)}
+        />
+      </>)}
       <SliderRow
         label="볼륨"
         value={config.volume}
@@ -280,38 +471,45 @@ export function TTSSettings(): React.ReactElement {
       />
 
       {/* Test */}
-      <div style={{ display: "flex", gap: 8 }}>
-        <input
-          type="text"
-          value={testText}
-          onChange={(e) => setTestText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") void handleTestSpeak(); }}
-          style={{ ...inputStyle, flex: 1 }}
-          placeholder="테스트 텍스트..."
-        />
-        <button
-          onClick={() => void handleTestSpeak()}
-          disabled={!testText.trim()}
-          style={{
-            padding: "6px 16px",
-            background: testText.trim() ? "rgba(167,139,250,0.15)" : "rgba(167,139,250,0.05)",
-            border: "1px solid rgba(167,139,250,0.3)",
-            borderRadius: 6,
-            color: testText.trim() ? "#A78BFA" : "rgba(167,139,250,0.3)",
-            cursor: testText.trim() ? "pointer" : "not-allowed",
-            fontSize: 12,
-            fontWeight: 600,
-            flexShrink: 0,
-          }}
-        >
-          ▷ 테스트
-        </button>
-        <button
-          onClick={handleStop}
-          style={{ padding: "6px 14px", background: "transparent", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-muted)", cursor: "pointer", fontSize: 12 }}
-        >
-          ■ 중지
-        </button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            type="text"
+            value={testText}
+            onChange={(e) => setTestText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void handleTestSpeak(); }}
+            style={{ ...inputStyle, flex: 1 }}
+            placeholder="테스트 텍스트..."
+          />
+          <button
+            onClick={() => void handleTestSpeak()}
+            disabled={!testText.trim()}
+            style={{
+              padding: "6px 16px",
+              background: testText.trim() ? "rgba(167,139,250,0.15)" : "rgba(167,139,250,0.05)",
+              border: "1px solid rgba(167,139,250,0.3)",
+              borderRadius: 6,
+              color: testText.trim() ? "#A78BFA" : "rgba(167,139,250,0.3)",
+              cursor: testText.trim() ? "pointer" : "not-allowed",
+              fontSize: 12,
+              fontWeight: 600,
+              flexShrink: 0,
+            }}
+          >
+            ▷ 테스트
+          </button>
+          <button
+            onClick={handleStop}
+            style={{ padding: "6px 14px", background: "transparent", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-muted)", cursor: "pointer", fontSize: 12 }}
+          >
+            ■ 중지
+          </button>
+        </div>
+        {testError && (
+          <div style={{ fontSize: 11, color: "#f87171", padding: "5px 10px", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 5 }}>
+            {testError}
+          </div>
+        )}
       </div>
 
       {/* Event toggles */}

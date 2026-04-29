@@ -1,11 +1,27 @@
 import { create } from "zustand";
 
+export type TTSProvider = "webspeech" | "google" | "elevenlabs" | "naver";
+
 export interface TTSConfig {
   enabled: boolean;
+  provider: TTSProvider;
+  // Web Speech API
   voiceName: string;
   rate: number;
   pitch: number;
   volume: number;
+  // Google Cloud TTS
+  googleApiKey: string;
+  googleVoiceName: string;
+  googleLanguageCode: string;
+  // ElevenLabs
+  elevenLabsApiKey: string;
+  elevenLabsVoiceId: string;
+  // Naver Clova TTS
+  naverClientId: string;
+  naverClientSecret: string;
+  naverSpeaker: string;
+  // Common
   readUsername: boolean;
   eventChat: boolean;
   eventGift: boolean;
@@ -27,10 +43,19 @@ export interface TTSQueueItem {
 
 export const TTS_CONFIG_DEFAULTS: TTSConfig = {
   enabled: true,
+  provider: "webspeech",
   voiceName: "",
   rate: 1.0,
   pitch: 1.0,
   volume: 1.0,
+  googleApiKey: "",
+  googleVoiceName: "ko-KR-Standard-A",
+  googleLanguageCode: "ko-KR",
+  elevenLabsApiKey: "",
+  elevenLabsVoiceId: "",
+  naverClientId: "",
+  naverClientSecret: "",
+  naverSpeaker: "nara",
   readUsername: true,
   eventChat: true,
   eventGift: true,

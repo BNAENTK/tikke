@@ -162,6 +162,19 @@ contextBridge.exposeInMainWorld("tikke", {
       ipcRenderer.on("tikke:tts:speak", handler);
       return () => ipcRenderer.removeListener("tikke:tts:speak", handler);
     },
+    synthesize: (req: {
+      provider: string;
+      text: string;
+      googleApiKey?: string;
+      googleVoiceName?: string;
+      googleLanguageCode?: string;
+      elevenLabsApiKey?: string;
+      elevenLabsVoiceId?: string;
+      naverClientId?: string;
+      naverClientSecret?: string;
+      naverSpeaker?: string;
+    }): Promise<{ audioBase64?: string; error?: string }> =>
+      ipcRenderer.invoke("tikke:tts:synthesize", req),
   },
   telegram: {
     test: (text?: string): Promise<{ ok: boolean; error?: string }> =>
