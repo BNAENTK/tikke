@@ -162,6 +162,8 @@ contextBridge.exposeInMainWorld("tikke", {
       ipcRenderer.on("tikke:tts:speak", handler);
       return () => ipcRenderer.removeListener("tikke:tts:speak", handler);
     },
+    tiktokLogin: (): Promise<{ sessionId?: string; error?: string }> =>
+      ipcRenderer.invoke("tikke:tts:tiktokLogin"),
     synthesize: (req: {
       provider: string;
       text: string;

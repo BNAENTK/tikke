@@ -239,9 +239,13 @@ export function registerIpcHandlers(
 
   ipcMain.handle("tikke:commands:newId", () => randomUUID());
 
-  // ── TTS Synthesize ────────────────────────────────────────────────────────
+  // ── TTS ───────────────────────────────────────────────────────────────────
   ipcMain.handle("tikke:tts:synthesize", async (_e: IpcMainInvokeEvent, req: unknown) => {
     return synthesizeExternalTTS(req);
+  });
+
+  ipcMain.handle("tikke:tts:tiktokLogin", async (e: IpcMainInvokeEvent) => {
+    return openTikTokLoginWindow(BrowserWindow.fromWebContents(e.sender));
   });
 
   // ── Cloud Sync ────────────────────────────────────────────────────────────
@@ -522,4 +526,59 @@ async function synthesizeNaver(r: SynthesizeRequest): Promise<{ audioBase64?: st
   const buffer = await res.arrayBuffer();
   const base64 = Buffer.from(buffer).toString("base64");
   return { audioBase64: base64 };
+}
+
+// ── TikTok Login Window ───────────────────────────────────────────────────────
+
+function openTikTokLoginWindow(
+  parent: BrowserWindow | null
+): Promise<{ sessionId?: string; error?: string }> {
+  return new Promise((resolve) => {
+    const win = new BrowserWindow({
+      width: 520,
+      height: 720,
+      parent: parent ?? undefined,
+      modal: true,
+      title: "TikTok 로그인",
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        partition: "persist:tiktok-tts",
+      },
+    });
+
+    win.loadURL("https://www.tiktok.com/login");
+
+    let resolved = false;
+
+    const checkCookies = async (): Promise<void> => {
+      const cookies = await win.webContents.session.cookies.get({
+        domain: ".tiktok.com",
+        name: "sessionid",
+      });
+      const found = cookies.find((c) => c.value && c.value.length > 10);
+      if (found && !resolved) {
+        resolved = true;
+        win.close();
+        resolve({ sessionId: found.value });
+      }
+    };
+
+    win.webContents.session.cookies.on("changed", () => { void checkCookies(); });
+
+    win.on("closed", () => {
+      if (!resolved) {
+        resolved = true;
+        resolve({ error: "로그인 창이 닫혔습니다." });
+      }
+    });
+
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        if (!win.isDestroyed()) win.close();
+        resolve({ error: "로그인 시간 초과 (5분)" });
+      }
+    }, 5 * 60 * 1000);
+  });
 }

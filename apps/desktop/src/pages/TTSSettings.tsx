@@ -233,6 +233,110 @@ function SliderRow({ label, value, min, max, step, displayValue, onChange, onCom
   );
 }
 
+// ── TikTok Login Panel ────────────────────────────────────────────────────────
+
+type TikkeWindowFull = {
+  tikke?: {
+    settings?: { set: (key: string, value: unknown) => Promise<void> };
+    tts?: {
+      tiktokLogin: () => Promise<{ sessionId?: string; error?: string }>;
+    };
+  };
+};
+
+interface TikTokLoginPanelProps {
+  config: TTSConfig;
+  update: <K extends keyof TTSConfig>(key: K, value: TTSConfig[K]) => Promise<void>;
+  inputStyle: React.CSSProperties;
+}
+
+function TikTokLoginPanel({ config, update, inputStyle }: TikTokLoginPanelProps): React.ReactElement {
+  const [loginStatus, setLoginStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [loginError, setLoginError] = useState("");
+
+  async function handleLogin(): Promise<void> {
+    const tikke = (window as unknown as TikkeWindowFull).tikke;
+    if (!tikke?.tts?.tiktokLogin) return;
+    setLoginStatus("loading");
+    setLoginError("");
+    const result = await tikke.tts.tiktokLogin();
+    if (result.sessionId) {
+      await update("tiktokSessionId", result.sessionId);
+      setLoginStatus("ok");
+    } else {
+      setLoginStatus("error");
+      setLoginError(result.error ?? "알 수 없는 오류");
+    }
+  }
+
+  const isLoggedIn = config.tiktokSessionId.length > 10;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {/* 로그인 상태 */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "10px 14px",
+        background: isLoggedIn ? "rgba(52,211,153,0.06)" : "rgba(167,139,250,0.05)",
+        border: `1px solid ${isLoggedIn ? "rgba(52,211,153,0.2)" : "rgba(167,139,250,0.15)"}`,
+        borderRadius: 8,
+      }}>
+        <div>
+          <div style={{ fontSize: 13, color: isLoggedIn ? "#34D399" : "var(--text-muted)", fontWeight: 600 }}>
+            {isLoggedIn ? "✓ TikTok 로그인됨" : "TikTok 미로그인"}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+            {isLoggedIn ? "TTS 음성을 사용할 수 있습니다." : "버튼을 눌러 로그인하세요."}
+          </div>
+        </div>
+        <button
+          onClick={() => void handleLogin()}
+          disabled={loginStatus === "loading"}
+          style={{
+            padding: "7px 16px",
+            background: loginStatus === "loading" ? "rgba(167,139,250,0.05)" : "rgba(167,139,250,0.15)",
+            border: "1px solid rgba(167,139,250,0.3)",
+            borderRadius: 6,
+            color: loginStatus === "loading" ? "var(--text-muted)" : "#A78BFA",
+            cursor: loginStatus === "loading" ? "not-allowed" : "pointer",
+            fontSize: 12,
+            fontWeight: 600,
+            flexShrink: 0,
+          }}
+        >
+          {loginStatus === "loading" ? "로그인 중..." : isLoggedIn ? "재로그인" : "🔑 TikTok 로그인"}
+        </button>
+      </div>
+
+      {loginStatus === "error" && (
+        <div style={{ fontSize: 11, color: "#f87171", padding: "5px 10px", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 5 }}>
+          {loginError}
+        </div>
+      )}
+
+      {/* 음성 선택 */}
+      <div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>음성 모델</div>
+        <select
+          value={config.tiktokVoiceId}
+          onChange={(e) => void update("tiktokVoiceId", e.target.value)}
+          style={{ ...inputStyle, width: "100%" }}
+        >
+          {TIKTOK_VOICES.map((group) => (
+            <optgroup key={group.group} label={group.group}>
+              {group.voices.map((v) => (
+                <option key={v.value} value={v.value}>{v.label}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export function TTSSettings(): React.ReactElement {
@@ -477,37 +581,7 @@ export function TTSSettings(): React.ReactElement {
 
         {/* TikTok TTS */}
         {config.provider === "tiktok" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ fontSize: 11, color: "rgba(167,139,250,0.8)", padding: "6px 10px", background: "rgba(167,139,250,0.05)", borderRadius: 6, border: "1px solid rgba(167,139,250,0.15)" }}>
-              TikTok 브라우저 로그인 → 개발자도구(F12) → Application → Cookies → tiktok.com → <strong>sessionid</strong> 값을 복사하세요.
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Session ID</div>
-              <input
-                type="password"
-                value={config.tiktokSessionId}
-                onChange={(e) => void update("tiktokSessionId", e.target.value)}
-                style={{ ...inputStyle, width: "100%" }}
-                placeholder="TikTok sessionid 쿠키 값"
-              />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>음성 모델</div>
-              <select
-                value={config.tiktokVoiceId}
-                onChange={(e) => void update("tiktokVoiceId", e.target.value)}
-                style={{ ...inputStyle, width: "100%" }}
-              >
-                {TIKTOK_VOICES.map((group) => (
-                  <optgroup key={group.group} label={group.group}>
-                    {group.voices.map((v) => (
-                      <option key={v.value} value={v.value}>{v.label}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
-          </div>
+          <TikTokLoginPanel config={config} update={update} inputStyle={inputStyle} />
         )}
 
         {/* Naver Clova TTS */}

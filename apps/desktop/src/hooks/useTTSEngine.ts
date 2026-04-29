@@ -11,6 +11,7 @@ type TikkeWindow = {
     };
     tts?: {
       onSpeak: (cb: (payload: { text: string }) => void) => () => void;
+      tiktokLogin: () => Promise<{ sessionId?: string; error?: string }>;
       synthesize: (req: {
         provider: string;
         text: string;
