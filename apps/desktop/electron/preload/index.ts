@@ -173,6 +173,8 @@ contextBridge.exposeInMainWorld("tikke", {
       naverClientId?: string;
       naverClientSecret?: string;
       naverSpeaker?: string;
+      tiktokSessionId?: string;
+      tiktokVoiceId?: string;
     }): Promise<{ audioBase64?: string; error?: string }> =>
       ipcRenderer.invoke("tikke:tts:synthesize", req),
   },

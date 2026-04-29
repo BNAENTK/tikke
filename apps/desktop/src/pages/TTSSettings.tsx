@@ -30,6 +30,8 @@ const CONFIG_KEY_MAP: Record<keyof TTSConfig, string> = {
   naverClientId: "ttsNaverClientId",
   naverClientSecret: "ttsNaverClientSecret",
   naverSpeaker: "ttsNaverSpeaker",
+  tiktokSessionId: "ttsTiktokSessionId",
+  tiktokVoiceId: "ttsTiktokVoiceId",
   readUsername: "ttsReadUsername",
   eventChat: "ttsEventChat",
   eventGift: "ttsEventGift",
@@ -56,6 +58,76 @@ const GOOGLE_VOICES: { name: string; label: string }[] = [
   { name: "ko-KR-Neural2-C", label: "Neural2 C — 남성 (최고품질)" },
   { name: "en-US-Neural2-F", label: "영어 Neural2 F — 여성" },
   { name: "en-US-Neural2-D", label: "영어 Neural2 D — 남성" },
+];
+
+const TIKTOK_VOICES: { group: string; voices: { value: string; label: string }[] }[] = [
+  {
+    group: "한국어",
+    voices: [
+      { value: "kr_002", label: "kr_002 — 한국어 여성 1" },
+      { value: "kr_003", label: "kr_003 — 한국어 여성 2" },
+      { value: "kr_004", label: "kr_004 — 한국어 남성" },
+    ],
+  },
+  {
+    group: "영어 (일반)",
+    voices: [
+      { value: "en_us_001", label: "en_us_001 — US 여성 1" },
+      { value: "en_us_002", label: "en_us_002 — US 여성 2" },
+      { value: "en_us_006", label: "en_us_006 — US 남성 1" },
+      { value: "en_us_007", label: "en_us_007 — US 남성 2" },
+      { value: "en_us_009", label: "en_us_009 — US 남성 3" },
+      { value: "en_us_010", label: "en_us_010 — US 남성 4" },
+      { value: "en_au_001", label: "en_au_001 — AU 여성" },
+      { value: "en_au_002", label: "en_au_002 — AU 남성" },
+      { value: "en_uk_001", label: "en_uk_001 — UK 남성 1" },
+      { value: "en_uk_003", label: "en_uk_003 — UK 남성 2" },
+    ],
+  },
+  {
+    group: "영어 (캐릭터/특수)",
+    voices: [
+      { value: "en_male_funny", label: "en_male_funny — Funny Guy" },
+      { value: "en_female_emotional", label: "en_female_emotional — Emotional" },
+      { value: "en_male_narration", label: "en_male_narration — Narrator" },
+      { value: "en_us_ghostface", label: "en_us_ghostface — Ghostface (Scream)" },
+      { value: "en_us_chewbacca", label: "en_us_chewbacca — Chewbacca" },
+      { value: "en_us_c3po", label: "en_us_c3po — C-3PO" },
+      { value: "en_us_stitch", label: "en_us_stitch — Stitch" },
+      { value: "en_us_stormtrooper", label: "en_us_stormtrooper — Stormtrooper" },
+      { value: "en_us_rocket", label: "en_us_rocket — Rocket" },
+    ],
+  },
+  {
+    group: "노래",
+    voices: [
+      { value: "en_female_f08_salut_damour", label: "Salut d'amour" },
+      { value: "en_male_m03_lobby", label: "Lobby" },
+      { value: "en_female_f08_warmy_breeze", label: "Warmy Breeze" },
+      { value: "en_male_m03_sunshine_soon", label: "Sunshine Soon" },
+    ],
+  },
+  {
+    group: "일본어",
+    voices: [
+      { value: "jp_001", label: "jp_001 — 일본어 여성 1" },
+      { value: "jp_003", label: "jp_003 — 일본어 여성 2" },
+      { value: "jp_005", label: "jp_005 — 일본어 여성 3" },
+      { value: "jp_006", label: "jp_006 — 일본어 남성" },
+    ],
+  },
+  {
+    group: "기타 언어",
+    voices: [
+      { value: "fr_001", label: "fr_001 — 프랑스어 여성" },
+      { value: "fr_002", label: "fr_002 — 프랑스어 남성" },
+      { value: "de_001", label: "de_001 — 독일어 여성" },
+      { value: "de_002", label: "de_002 — 독일어 남성" },
+      { value: "es_002", label: "es_002 — 스페인어" },
+      { value: "es_mx_002", label: "es_mx_002 — 멕시코 스페인어" },
+      { value: "id_001", label: "id_001 — 인도네시아어" },
+    ],
+  },
 ];
 
 const NAVER_SPEAKERS: { value: string; label: string }[] = [
@@ -214,6 +286,8 @@ export function TTSSettings(): React.ReactElement {
         naverClientId: config.naverClientId,
         naverClientSecret: config.naverClientSecret,
         naverSpeaker: config.naverSpeaker,
+        tiktokSessionId: config.tiktokSessionId,
+        tiktokVoiceId: config.tiktokVoiceId,
       });
       if (result.error) { setTestError(result.error); return; }
       if (result.audioBase64) {
@@ -311,6 +385,7 @@ export function TTSSettings(): React.ReactElement {
             style={{ ...inputStyle, width: "100%" }}
           >
             <option value="webspeech">🌐 웹 브라우저 (Web Speech API)</option>
+            <option value="tiktok">🎵 TikTok TTS (틱톡 내장 음성)</option>
             <option value="google">Google Cloud TTS</option>
             <option value="elevenlabs">ElevenLabs</option>
             <option value="naver">네이버 클로바 TTS</option>
@@ -396,6 +471,41 @@ export function TTSSettings(): React.ReactElement {
                 style={{ ...inputStyle, width: "100%" }}
                 placeholder="21m00Tcm4TlvDq8ikWAM"
               />
+            </div>
+          </div>
+        )}
+
+        {/* TikTok TTS */}
+        {config.provider === "tiktok" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 11, color: "rgba(167,139,250,0.8)", padding: "6px 10px", background: "rgba(167,139,250,0.05)", borderRadius: 6, border: "1px solid rgba(167,139,250,0.15)" }}>
+              TikTok 브라우저 로그인 → 개발자도구(F12) → Application → Cookies → tiktok.com → <strong>sessionid</strong> 값을 복사하세요.
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Session ID</div>
+              <input
+                type="password"
+                value={config.tiktokSessionId}
+                onChange={(e) => void update("tiktokSessionId", e.target.value)}
+                style={{ ...inputStyle, width: "100%" }}
+                placeholder="TikTok sessionid 쿠키 값"
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>음성 모델</div>
+              <select
+                value={config.tiktokVoiceId}
+                onChange={(e) => void update("tiktokVoiceId", e.target.value)}
+                style={{ ...inputStyle, width: "100%" }}
+              >
+                {TIKTOK_VOICES.map((group) => (
+                  <optgroup key={group.group} label={group.group}>
+                    {group.voices.map((v) => (
+                      <option key={v.value} value={v.value}>{v.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
             </div>
           </div>
         )}

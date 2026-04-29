@@ -30,6 +30,8 @@ export interface AppSettings {
   ttsNaverClientId: string;
   ttsNaverClientSecret: string;
   ttsNaverSpeaker: string;
+  ttsTiktokSessionId: string;
+  ttsTiktokVoiceId: string;
   ttsReadUsername: boolean;
   ttsEventChat: boolean;
   ttsEventGift: boolean;
@@ -91,6 +93,8 @@ const DEFAULTS: AppSettings = {
   ttsNaverClientId: "",
   ttsNaverClientSecret: "",
   ttsNaverSpeaker: "nara",
+  ttsTiktokSessionId: "",
+  ttsTiktokVoiceId: "kr_002",
   ttsReadUsername: true,
   ttsEventChat: true,
   ttsEventGift: true,

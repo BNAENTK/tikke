@@ -22,6 +22,8 @@ type TikkeWindow = {
         naverClientId?: string;
         naverClientSecret?: string;
         naverSpeaker?: string;
+        tiktokSessionId?: string;
+        tiktokVoiceId?: string;
       }) => Promise<{ audioBase64?: string; error?: string }>;
     };
   };
@@ -174,6 +176,8 @@ export function useTTSEngine(): void {
         naverClientId: String(all["ttsNaverClientId"] ?? ""),
         naverClientSecret: String(all["ttsNaverClientSecret"] ?? ""),
         naverSpeaker: String(all["ttsNaverSpeaker"] ?? "nara"),
+        tiktokSessionId: String(all["ttsTiktokSessionId"] ?? ""),
+        tiktokVoiceId: String(all["ttsTiktokVoiceId"] ?? "kr_002"),
         readUsername: Boolean(all["ttsReadUsername"] ?? true),
         eventChat: Boolean(all["ttsEventChat"] ?? true),
         eventGift: Boolean(all["ttsEventGift"] ?? true),
@@ -286,6 +290,8 @@ async function speakExternal(
     naverClientId: cfg.naverClientId,
     naverClientSecret: cfg.naverClientSecret,
     naverSpeaker: cfg.naverSpeaker,
+    tiktokSessionId: cfg.tiktokSessionId,
+    tiktokVoiceId: cfg.tiktokVoiceId,
   });
 
   if (result.error || !result.audioBase64) {

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type TTSProvider = "webspeech" | "google" | "elevenlabs" | "naver";
+export type TTSProvider = "webspeech" | "google" | "elevenlabs" | "naver" | "tiktok";
 
 export interface TTSConfig {
   enabled: boolean;
@@ -21,6 +21,9 @@ export interface TTSConfig {
   naverClientId: string;
   naverClientSecret: string;
   naverSpeaker: string;
+  // TikTok TTS
+  tiktokSessionId: string;
+  tiktokVoiceId: string;
   // Common
   readUsername: boolean;
   eventChat: boolean;
@@ -56,6 +59,8 @@ export const TTS_CONFIG_DEFAULTS: TTSConfig = {
   naverClientId: "",
   naverClientSecret: "",
   naverSpeaker: "nara",
+  tiktokSessionId: "",
+  tiktokVoiceId: "kr_002",
   readUsername: true,
   eventChat: true,
   eventGift: true,

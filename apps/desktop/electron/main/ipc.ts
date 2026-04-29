@@ -363,6 +363,8 @@ interface SynthesizeRequest {
   naverClientId?: string;
   naverClientSecret?: string;
   naverSpeaker?: string;
+  tiktokSessionId?: string;
+  tiktokVoiceId?: string;
 }
 
 async function synthesizeExternalTTS(req: unknown): Promise<{ audioBase64?: string; error?: string }> {
@@ -374,6 +376,7 @@ async function synthesizeExternalTTS(req: unknown): Promise<{ audioBase64?: stri
     if (r.provider === "google") return await synthesizeGoogle(r);
     if (r.provider === "elevenlabs") return await synthesizeElevenLabs(r);
     if (r.provider === "naver") return await synthesizeNaver(r);
+    if (r.provider === "tiktok") return await synthesizeTikTok(r);
     return { error: "Unknown provider" };
   } catch (e) {
     return { error: String(e) };
@@ -434,6 +437,58 @@ async function synthesizeElevenLabs(r: SynthesizeRequest): Promise<{ audioBase64
   const buffer = await res.arrayBuffer();
   const base64 = Buffer.from(buffer).toString("base64");
   return { audioBase64: base64 };
+}
+
+async function synthesizeTikTok(r: SynthesizeRequest): Promise<{ audioBase64?: string; error?: string }> {
+  if (!r.tiktokSessionId) return { error: "TikTok Session ID가 없습니다. 브라우저 쿠키에서 sessionid 값을 복사하세요." };
+  const voiceId = r.tiktokVoiceId ?? "kr_002";
+
+  // TikTok TTS는 요청당 최대 ~300자이므로 청크 분할 후 병합
+  const chunks = chunkText(r.text, 280);
+  const buffers: Buffer[] = [];
+
+  for (const chunk of chunks) {
+    const encoded = encodeURIComponent(chunk);
+    const url = `https://api16-normal-v6.tiktokv.com/media/api/text/speech/invoke/?text_speaker=${voiceId}&req_text=${encoded}&speaker_map_type=0&aid=1233`;
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "User-Agent": "com.zhiliaoapp.musically/2022600030 (Linux; U; Android 7.1.2; es_ES; SM-G988N; Build/NRD90M;tt-ok/3.12.13.1)",
+        "Cookie": `sessionid=${r.tiktokSessionId}`,
+      },
+    });
+
+    if (!res.ok) {
+      const err = await res.text().catch(() => res.statusText);
+      return { error: `TikTok TTS 오류 (${res.status}): ${err}` };
+    }
+
+    const json = await res.json() as { status_code?: number; message?: string; data?: { v_str?: string } };
+    if (json.status_code !== 0 || !json.data?.v_str) {
+      return { error: `TikTok TTS 실패: ${json.message ?? "알 수 없는 오류"} (code: ${json.status_code ?? "?"})` };
+    }
+
+    buffers.push(Buffer.from(json.data.v_str, "base64"));
+  }
+
+  const merged = Buffer.concat(buffers);
+  return { audioBase64: merged.toString("base64") };
+}
+
+function chunkText(text: string, maxLen: number): string[] {
+  if (text.length <= maxLen) return [text];
+  const chunks: string[] = [];
+  let remaining = text;
+  while (remaining.length > 0) {
+    let cut = maxLen;
+    // 문장 경계에서 자르기
+    const boundary = remaining.lastIndexOf(" ", maxLen);
+    if (boundary > maxLen * 0.5) cut = boundary;
+    chunks.push(remaining.slice(0, cut).trim());
+    remaining = remaining.slice(cut).trim();
+  }
+  return chunks.filter((c) => c.length > 0);
 }
 
 async function synthesizeNaver(r: SynthesizeRequest): Promise<{ audioBase64?: string; error?: string }> {
