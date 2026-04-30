@@ -1,8 +1,8 @@
 import React from "react";
 
-const VERSION = "0.1.0";
 const GITHUB = "https://github.com/BNAENTK/tikke";
-const DOWNLOAD_URL = `${GITHUB}/releases/download/v${VERSION}/Tikke.Setup.${VERSION}.exe`;
+// Worker가 GitHub API에서 최신 릴리즈를 조회해 자동 리다이렉트
+const DOWNLOAD_URL = "https://tikke-worker.logoros11.workers.dev/download";
 
 export function Download(): React.ReactElement {
   return (
@@ -28,7 +28,7 @@ export function Download(): React.ReactElement {
             }}
           >
             <span>Windows 다운로드</span>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>v{VERSION} · .exe</span>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>최신 버전 · .exe</span>
           </a>
           <a href={`${GITHUB}/releases`} style={{ fontSize: 12, color: "var(--text-muted)" }}>
             모든 릴리즈 보기 →

@@ -4,6 +4,7 @@ import { handleMe } from "./routes/me";
 import { handleSettings } from "./routes/settings";
 import { handleOverlayRooms } from "./routes/overlay";
 import { handleEventsIngest } from "./routes/events";
+import { handleDownload } from "./routes/download";
 import type { Env } from "./lib/auth";
 
 export { OverlayRoom } from "./durable/OverlayRoom";
@@ -20,6 +21,7 @@ export default {
 
     try {
       if (path === "/health") return handleHealth(request, env);
+      if (path === "/download") return handleDownload();
       if (path === "/me") return handleMe(request, env);
       if (path === "/settings") return handleSettings(request, env);
       if (path.startsWith("/overlay/rooms")) return handleOverlayRooms(request, env);
