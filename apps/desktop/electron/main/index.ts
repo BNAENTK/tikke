@@ -13,6 +13,7 @@ import { overlayServer } from "../services/overlay-server";
 import { overlayRulesService } from "../services/overlay-rules-service";
 import { commandService } from "../services/command-service";
 import { initUpdater } from "../services/updater";
+import { cloudOverlayService } from "../services/cloud-overlay";
 import { initTelegram } from "../services/telegram";
 import type { TikkeEvent } from "@tikke/shared";
 import type { Session } from "../services/supabase";
@@ -46,10 +47,27 @@ function createWindow(): void {
       preload: join(__dirname, "../preload/index.js"),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: true,
       webSecurity: true,
     },
   });
+
+  // Allow microphone access for getUserMedia and Web Speech API (SpeechRecognition)
+  mainWindow.webContents.session.setPermissionRequestHandler(
+    (_webContents, permission, callback, details) => {
+      if (permission === "media") {
+        const mediaTypes = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
+        // Allow audio-only; deny camera unless explicitly needed
+        const wantsVideo = mediaTypes.includes("video");
+        callback(!wantsVideo || mediaTypes.includes("audio"));
+      } else {
+        callback(false);
+      }
+    }
+  );
+
+  mainWindow.webContents.session.setPermissionCheckHandler(
+    (_webContents, permission) => permission === "media"
+  );
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -60,7 +78,7 @@ function createWindow(): void {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL ?? "http://localhost:5173");
     mainWindow.webContents.openDevTools({ mode: "detach" });
   } else {
-    mainWindow.loadFile(join(__dirname, "../../index.html"));
+    mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
   }
 }
 
@@ -104,6 +122,11 @@ function setupEventPipeline(): void {
   // 6. EventBus 구독: 명령어 감지 (채팅)
   eventBus.subscribe("chat", (event) => {
     commandService.handleChatEvent(event);
+  });
+
+  // 7. EventBus 구독: 클라우드 오버레이 브로드캐스트
+  eventBus.subscribe("*", (event) => {
+    void cloudOverlayService.broadcast(event);
   });
 }
 

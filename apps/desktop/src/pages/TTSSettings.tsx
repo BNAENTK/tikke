@@ -64,9 +64,9 @@ const TIKTOK_VOICES: { group: string; voices: { value: string; label: string }[]
   {
     group: "한국어",
     voices: [
-      { value: "kr_002", label: "kr_002 — 한국어 여성 1" },
-      { value: "kr_003", label: "kr_003 — 한국어 여성 2" },
-      { value: "kr_004", label: "kr_004 — 한국어 남성" },
+      { value: "kr_002", label: "kr_002 — 한국어 남성" },
+      { value: "kr_003", label: "kr_003 — 한국어 여성" },
+      { value: "kr_004", label: "kr_004 — 한국어 남성 2" },
     ],
   },
   {
@@ -141,6 +141,31 @@ const NAVER_SPEAKERS: { value: string; label: string }[] = [
   { value: "clara", label: "클라라 — 영어 여성" },
   { value: "matt", label: "매트 — 영어 남성" },
 ];
+
+async function playBase64Audio(base64: string, volume: number, rate: number, pitch: number): Promise<void> {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const audioCtx = new AudioContext();
+  try {
+    const audioBuffer = await audioCtx.decodeAudioData(bytes.buffer);
+    const source = audioCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.playbackRate.value = rate;
+    source.detune.value = (pitch - 1.0) * 1200;
+    const gain = audioCtx.createGain();
+    gain.gain.value = volume;
+    source.connect(gain);
+    gain.connect(audioCtx.destination);
+    await new Promise<void>((resolve, reject) => {
+      source.onended = () => resolve();
+      source.addEventListener("error", () => reject(new Error("재생 중 오류")));
+      source.start(0);
+    });
+  } finally {
+    void audioCtx.close();
+  }
+}
 
 async function saveSetting(key: keyof TTSConfig, value: unknown): Promise<void> {
   const tikke = (window as unknown as TikkeWindow).tikke;
@@ -347,7 +372,7 @@ export function TTSSettings(): React.ReactElement {
 
   const loadVoices = useCallback(() => {
     const all = speechSynthesis.getVoices();
-    if (all.length > 0) setVoices(all.filter((v) => !v.name.toLowerCase().includes("microsoft")));
+    if (all.length > 0) setVoices(all);
   }, []);
 
   useEffect(() => {
@@ -366,14 +391,21 @@ export function TTSSettings(): React.ReactElement {
     setTestError("");
 
     if (config.provider === "webspeech") {
+      speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(testText);
       utterance.rate = config.rate;
       utterance.pitch = config.pitch;
       utterance.volume = config.volume;
-      utterance.lang = "ko-KR";
+      const allVoices = speechSynthesis.getVoices();
       if (config.voiceName) {
-        const voice = voices.find((v) => v.name === config.voiceName);
-        if (voice) utterance.voice = voice;
+        const voice = allVoices.find((v) => v.name === config.voiceName);
+        if (voice) {
+          utterance.voice = voice;
+        } else {
+          utterance.lang = "ko-KR";
+        }
+      } else {
+        utterance.lang = "ko-KR";
       }
       speechSynthesis.speak(utterance);
     } else {
@@ -395,15 +427,13 @@ export function TTSSettings(): React.ReactElement {
       });
       if (result.error) { setTestError(result.error); return; }
       if (result.audioBase64) {
-        const binary = atob(result.audioBase64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const blob = new Blob([bytes], { type: "audio/mpeg" });
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        audio.volume = config.volume;
-        audio.onended = () => URL.revokeObjectURL(url);
-        void audio.play();
+        try {
+          await playBase64Audio(result.audioBase64, config.volume, config.rate, config.pitch);
+        } catch (err) {
+          setTestError(`오디오 재생 실패: ${String(err)}`);
+        }
+      } else {
+        setTestError("오디오 데이터를 받지 못했습니다.");
       }
     }
   }
@@ -499,7 +529,7 @@ export function TTSSettings(): React.ReactElement {
         {/* Web Speech API */}
         {config.provider === "webspeech" && (
           <div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>음성 선택 (Microsoft 제외)</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>음성 선택</div>
             <select
               value={config.voiceName}
               onChange={(e) => void update("voiceName", e.target.value)}
@@ -514,7 +544,7 @@ export function TTSSettings(): React.ReactElement {
               ))}
             </select>
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
-              {voices.length === 0 ? "음성 목록 로딩 중..." : `${voices.length}개 사용 가능 (Microsoft 음성 제외됨)`}
+              {voices.length === 0 ? "음성 목록 로딩 중..." : `${voices.length}개 사용 가능`}
             </div>
           </div>
         )}
@@ -626,25 +656,22 @@ export function TTSSettings(): React.ReactElement {
         )}
       </div>
 
-      {/* 속도/음높이/볼륨은 webspeech만 */}
-      {config.provider === "webspeech" && (<>
-        <SliderRow
-          label="속도"
-          value={config.rate}
-          min={0.5} max={2.0} step={0.05}
-          displayValue={config.rate.toFixed(2)}
-          onChange={(v) => setConfig({ rate: v })}
-          onCommit={(v) => void update("rate", v)}
-        />
-        <SliderRow
-          label="음높이"
-          value={config.pitch}
-          min={0} max={2.0} step={0.05}
-          displayValue={config.pitch.toFixed(2)}
-          onChange={(v) => setConfig({ pitch: v })}
-          onCommit={(v) => void update("pitch", v)}
-        />
-      </>)}
+      <SliderRow
+        label="속도"
+        value={config.rate}
+        min={0.5} max={2.0} step={0.05}
+        displayValue={config.rate.toFixed(2)}
+        onChange={(v) => setConfig({ rate: v })}
+        onCommit={(v) => void update("rate", v)}
+      />
+      <SliderRow
+        label="음높이"
+        value={config.pitch}
+        min={0} max={2.0} step={0.05}
+        displayValue={config.pitch.toFixed(2)}
+        onChange={(v) => setConfig({ pitch: v })}
+        onCommit={(v) => void update("pitch", v)}
+      />
       <SliderRow
         label="볼륨"
         value={config.volume}
@@ -653,6 +680,13 @@ export function TTSSettings(): React.ReactElement {
         onChange={(v) => setConfig({ volume: v })}
         onCommit={(v) => void update("volume", v)}
       />
+
+      {/* TikTok 미로그인 경고 */}
+      {config.provider === "tiktok" && !config.tiktokSessionId && (
+        <div style={{ fontSize: 12, color: "#fbbf24", padding: "8px 12px", background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 7 }}>
+          ⚠ TikTok 로그인이 필요합니다. 위의 "TTS 엔진" 섹션에서 먼저 로그인하세요.
+        </div>
+      )}
 
       {/* Test */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

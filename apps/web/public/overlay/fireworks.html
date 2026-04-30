@@ -5,16 +5,26 @@
 <title>Tikke Fireworks Overlay</title>
 <style>
 * { margin: 0; padding: 0; }
-html, body { width: 100%; height: 100%; background: transparent !important; overflow: hidden; }
-canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
-#status { position: fixed; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: #555; transition: background 0.3s; }
-#status.on { background: #34D399; box-shadow: 0 0 6px #34D399; }
+html, body {
+  width: 100%; height: 100%;
+  background: transparent !important;
+  overflow: hidden;
+}
+canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
 </style>
 </head>
 <body>
-<div id="status"></div>
 <canvas id="c"></canvas>
 <script>
+const params = new URLSearchParams(location.search);
+const room = params.get('room') || '';
+const WORKER = 'wss://tikke-worker.logoros11.workers.dev';
+
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 
@@ -27,6 +37,7 @@ window.addEventListener('resize', resize);
 
 const COLORS = ['#FF0050','#00F2EA','#A78BFA','#FF6B9D','#FBBF24','#34D399','#60A5FA'];
 const particles = [];
+let animRunning = false;
 
 function randomBetween(a, b) { return a + Math.random() * (b - a); }
 
@@ -47,16 +58,14 @@ function explode(x, y, count) {
   }
 }
 
-let animRunning = false;
 function animate() {
   if (particles.length === 0) { animRunning = false; return; }
   animRunning = true;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vy += 0.12; // gravity
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.12;
     p.vx *= 0.98;
     p.alpha -= p.decay;
     if (p.alpha <= 0) { particles.splice(i, 1); continue; }
@@ -75,7 +84,6 @@ function launchFireworks(intensity, durationMs) {
   const particlesPerBurst = 40 + count * 10;
   const interval = Math.max(200, 1000 / count);
   let elapsed = 0;
-
   const timer = setInterval(() => {
     const x = randomBetween(canvas.width * 0.2, canvas.width * 0.8);
     const y = randomBetween(canvas.height * 0.1, canvas.height * 0.5);
@@ -86,23 +94,25 @@ function launchFireworks(intensity, durationMs) {
   }, interval);
 }
 
-function handleMessage(msg) {
-  if (msg.type === 'fireworks') {
-    launchFireworks(msg.intensity || 3, msg.durationMs || 3000);
-  } else if (msg.type === 'clear') {
+function handleEvent(ev) {
+  if (ev.type === 'fireworks') {
+    launchFireworks(ev.intensity || 3, ev.durationMs || 3000);
+  } else if (ev.type === 'clear') {
     particles.length = 0;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 }
 
-const statusDot = document.getElementById('status');
-let ws, retryTimer;
 function connect() {
-  clearTimeout(retryTimer);
-  ws = new WebSocket(`ws://${window.location.hostname}:18182`);
-  ws.onopen = () => statusDot.classList.add('on');
-  ws.onmessage = e => { try { handleMessage(JSON.parse(e.data)); } catch {} };
-  ws.onclose = () => { statusDot.classList.remove('on'); retryTimer = setTimeout(connect, 2000); };
+  if (!room) return;
+  const ws = new WebSocket(`${WORKER}/overlay/rooms/${room}/ws`);
+  ws.onmessage = e => {
+    try {
+      const d = JSON.parse(e.data);
+      if (d.type === 'events') d.events.forEach(handleEvent);
+    } catch {}
+  };
+  ws.onclose = () => setTimeout(connect, 3000);
   ws.onerror = () => ws.close();
 }
 connect();

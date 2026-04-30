@@ -180,6 +180,18 @@ contextBridge.exposeInMainWorld("tikke", {
     }): Promise<{ audioBase64?: string; error?: string }> =>
       ipcRenderer.invoke("tikke:tts:synthesize", req),
   },
+  cloudOverlay: {
+    getUrls: (): Promise<Record<string, string>> =>
+      ipcRenderer.invoke("tikke:cloudOverlay:getUrls"),
+    getRoomKey: (): Promise<string> =>
+      ipcRenderer.invoke("tikke:cloudOverlay:getRoomKey"),
+    setRoomKey: (key: string): Promise<void> =>
+      ipcRenderer.invoke("tikke:cloudOverlay:setRoomKey", key),
+  },
+  stt: {
+    recognize: (buffer: ArrayBuffer): Promise<{ text: string; error?: string }> =>
+      ipcRenderer.invoke("tikke:stt:recognize", buffer),
+  },
   telegram: {
     test: (text?: string): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke("tikke:telegram:test", text ?? ""),

@@ -5,56 +5,28 @@
 <title>Tikke Gift Overlay</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body {
-  width: 100%; height: 100%;
-  background: transparent !important;
-  overflow: hidden;
-  font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
-}
-#gift-container {
-  position: fixed;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  pointer-events: none;
-}
-.gift-popup {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 18px 32px;
-  background: rgba(10,10,30,0.88);
-  border: 1px solid rgba(255,0,80,0.4);
-  border-radius: 16px;
-  box-shadow: 0 0 30px rgba(255,0,80,0.2);
-  animation: popIn 0.35s cubic-bezier(0.34,1.56,0.64,1);
-}
+html, body { width: 100%; height: 100%; background: transparent !important; overflow: hidden; font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; }
+#gift-container { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: none; }
+.gift-popup { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 18px 32px; background: rgba(10,10,30,0.88); border: 1px solid rgba(255,0,80,0.4); border-radius: 16px; box-shadow: 0 0 30px rgba(255,0,80,0.2); animation: popIn 0.35s cubic-bezier(0.34,1.56,0.64,1); }
 .gift-popup.removing { animation: popOut 0.4s ease forwards; }
 .nick { font-size: 14px; color: #aaa; font-weight: 500; }
 .gift-name { font-size: 28px; font-weight: 800; color: #FF0050; letter-spacing: -0.5px; }
 .gift-meta { font-size: 13px; color: #A78BFA; }
 .gift-count { font-size: 22px; font-weight: 700; color: #FF6B9D; }
-@keyframes popIn {
-  from { opacity: 0; transform: scale(0.5); }
-  to { opacity: 1; transform: scale(1); }
-}
-@keyframes popOut {
-  to { opacity: 0; transform: scale(0.8) translateY(-20px); }
-}
+@keyframes popIn { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+@keyframes popOut { to { opacity: 0; transform: scale(0.8) translateY(-20px); } }
+#status { position: fixed; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: #555; transition: background 0.3s; }
+#status.on { background: #34D399; box-shadow: 0 0 6px #34D399; }
 </style>
 </head>
 <body>
+<div id="status"></div>
 <div id="gift-container"></div>
 <script>
 const container = document.getElementById('gift-container');
+const statusDot = document.getElementById('status');
 
-function esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function showGift(p) {
   const el = document.createElement('div');
@@ -67,35 +39,24 @@ function showGift(p) {
     ${diamonds > 0 ? `<div class="gift-meta">💎 ${diamonds} 다이아</div>` : ''}
   `;
   container.prepend(el);
-
   const duration = Math.min(3000 + (diamonds > 0 ? Math.min(diamonds * 10, 5000) : 0), 8000);
-  setTimeout(() => {
-    el.classList.add('removing');
-    setTimeout(() => el.remove(), 400);
-  }, duration);
-
-  // Keep at most 3 visible
+  setTimeout(() => { el.classList.add('removing'); setTimeout(() => el.remove(), 400); }, duration);
   const all = container.querySelectorAll('.gift-popup:not(.removing)');
-  if (all.length > 3) {
-    const old = all[all.length - 1];
-    old.classList.add('removing');
-    setTimeout(() => old.remove(), 400);
-  }
+  if (all.length > 3) { const old = all[all.length - 1]; old.classList.add('removing'); setTimeout(() => old.remove(), 400); }
 }
 
 function handleMessage(msg) {
-  if (msg.type === 'gift' && msg.payload) {
-    showGift(msg.payload);
-  } else if (msg.type === 'clear') {
-    container.innerHTML = '';
-  }
+  if (msg.type === 'gift' && msg.payload) { showGift(msg.payload); }
+  else if (msg.type === 'clear') { container.innerHTML = ''; }
 }
 
-let ws;
+let ws, retryTimer;
 function connect() {
+  clearTimeout(retryTimer);
   ws = new WebSocket(`ws://${window.location.hostname}:18182`);
+  ws.onopen = () => statusDot.classList.add('on');
   ws.onmessage = e => { try { handleMessage(JSON.parse(e.data)); } catch {} };
-  ws.onclose = () => setTimeout(connect, 2000);
+  ws.onclose = () => { statusDot.classList.remove('on'); retryTimer = setTimeout(connect, 2000); };
   ws.onerror = () => ws.close();
 }
 connect();

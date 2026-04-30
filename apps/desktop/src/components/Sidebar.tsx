@@ -11,6 +11,7 @@ export type SidebarPage =
   | "translation"
   | "overlays"
   | "commands"
+  | "integrations"
   | "settings"
   | "buildinfo";
 
@@ -53,6 +54,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: "시스템",
     items: [
+      { id: "integrations", label: "연동", icon: "⇌" },
       { id: "settings", label: "설정", icon: "⚙" },
       { id: "buildinfo", label: "빌드 정보", icon: "◉" },
     ],

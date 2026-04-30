@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, type MutableRefObject } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useTTSStore, type TTSConfig, type TTSQueueItem } from "../stores/ttsStore";
 import type { TikkeEvent } from "@tikke/shared";
 
@@ -88,7 +88,7 @@ export function useTTSEngine(): void {
   const isSpeakingRef = useRef(false);
   const configRef = useRef<TTSConfig>(useTTSStore.getState().config);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const stopAudioRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     return useTTSStore.subscribe((state) => {
@@ -122,7 +122,7 @@ export function useTTSEngine(): void {
         processQueue();
       });
     } else {
-      void speakExternal(text, cfg, audioRef, isSpeakingRef, () => {
+      void speakExternal(text, cfg, stopAudioRef, isSpeakingRef, () => {
         useTTSStore.getState().setCurrentItem(null);
         processQueue();
       });
@@ -218,9 +218,9 @@ export function useTTSEngine(): void {
   useEffect(() => {
     const handler = (): void => {
       speechSynthesis.cancel();
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
+      if (stopAudioRef.current) {
+        stopAudioRef.current();
+        stopAudioRef.current = null;
       }
       isSpeakingRef.current = false;
       utteranceRef.current = null;
@@ -239,8 +239,8 @@ export function useTTSEngine(): void {
 function speakWebSpeech(
   text: string,
   cfg: TTSConfig,
-  utteranceRef: MutableRefObject<SpeechSynthesisUtterance | null>,
-  isSpeakingRef: MutableRefObject<boolean>,
+  utteranceRef: { current: SpeechSynthesisUtterance | null },
+  isSpeakingRef: { current: boolean },
   onDone: () => void,
 ): void {
   const utterance = new SpeechSynthesisUtterance(text);
@@ -268,8 +268,8 @@ function speakWebSpeech(
 async function speakExternal(
   text: string,
   cfg: TTSConfig,
-  audioRef: MutableRefObject<HTMLAudioElement | null>,
-  isSpeakingRef: MutableRefObject<boolean>,
+  stopAudioRef: { current: (() => void) | null },
+  isSpeakingRef: { current: boolean },
   onDone: () => void,
 ): Promise<void> {
   const tikke = (window as unknown as TikkeWindow).tikke;
@@ -302,19 +302,37 @@ async function speakExternal(
     return;
   }
 
-  const binary = atob(result.audioBase64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  const blob = new Blob([bytes], { type: "audio/mpeg" });
-  const url = URL.createObjectURL(blob);
+  try {
+    const binary = atob(result.audioBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
-  const audio = new Audio(url);
-  audio.volume = cfg.volume;
-  audioRef.current = audio;
+    const audioCtx = new AudioContext();
+    const audioBuffer = await audioCtx.decodeAudioData(bytes.buffer);
+    const source = audioCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.playbackRate.value = cfg.rate;
+    source.detune.value = (cfg.pitch - 1.0) * 1200;
+    const gain = audioCtx.createGain();
+    gain.gain.value = cfg.volume;
+    source.connect(gain);
+    gain.connect(audioCtx.destination);
 
-  audio.onended = () => { URL.revokeObjectURL(url); isSpeakingRef.current = false; onDone(); };
-  audio.onerror = () => { URL.revokeObjectURL(url); isSpeakingRef.current = false; onDone(); };
-  audio.play().catch(() => { URL.revokeObjectURL(url); isSpeakingRef.current = false; onDone(); });
+    stopAudioRef.current = () => {
+      try { source.stop(); } catch { /* already stopped */ }
+      void audioCtx.close();
+    };
+
+    await new Promise<void>((resolve) => {
+      source.onended = () => { void audioCtx.close(); stopAudioRef.current = null; resolve(); };
+      source.start(0);
+    });
+  } catch (err) {
+    console.error("[tts] audio playback error:", err);
+  }
+
+  isSpeakingRef.current = false;
+  onDone();
 }
 
 export function stopTTS(): void {

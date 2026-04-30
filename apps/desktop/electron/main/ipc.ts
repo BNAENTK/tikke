@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { checkForUpdates, downloadUpdate, installUpdate } from "../services/updater";
 import { sendTelegramMessage } from "../services/telegram";
 import { pushSettingsToCloud, pullSettingsFromCloud } from "../services/cloud-sync";
+import { cloudOverlayService } from "../services/cloud-overlay";
 import { getSetting, setSetting, getAllSettings } from "../services/settings";
 import { getDb } from "../services/db";
 import {
@@ -18,6 +19,7 @@ import { soundService } from "../services/sound-service";
 import { overlayServer, type OverlayMessage } from "../services/overlay-server";
 import { overlayRulesService, type OverlayRule } from "../services/overlay-rules-service";
 import { commandService, type Command } from "../services/command-service";
+import { recognizePCM } from "../services/stt-service";
 import type { AppSettings } from "../services/settings";
 import type { TikkeEvent } from "@tikke/shared";
 import type { Session } from "../services/supabase";
@@ -193,6 +195,7 @@ export function registerIpcHandlers(
   ipcMain.handle("tikke:overlay:send", (_e: IpcMainInvokeEvent, msg: unknown) => {
     if (!isValidOverlayMessage(msg)) return { error: "잘못된 메시지 형식입니다." };
     overlayServer.broadcast(msg as OverlayMessage);
+    void cloudOverlayService.broadcastMessage(msg as OverlayMessage);
   });
 
   // ── Overlay Rules ─────────────────────────────────────────────────────────
@@ -248,9 +251,26 @@ export function registerIpcHandlers(
     return openTikTokLoginWindow(BrowserWindow.fromWebContents(e.sender));
   });
 
+  // ── Cloud Overlay ─────────────────────────────────────────────────────────
+  ipcMain.handle("tikke:cloudOverlay:getUrls", () => cloudOverlayService.getUrls());
+  ipcMain.handle("tikke:cloudOverlay:getRoomKey", () => cloudOverlayService.getRoomKey());
+  ipcMain.handle("tikke:cloudOverlay:setRoomKey", (_e, key: unknown) => {
+    if (typeof key === "string" && /^[a-z0-9]{8,16}$/.test(key)) cloudOverlayService.setRoomKey(key);
+  });
+
   // ── Cloud Sync ────────────────────────────────────────────────────────────
   ipcMain.handle("tikke:cloud:push", async () => pushSettingsToCloud());
   ipcMain.handle("tikke:cloud:pull", async () => pullSettingsFromCloud());
+
+  // ── STT ───────────────────────────────────────────────────────────────────
+  ipcMain.handle("tikke:stt:recognize", async (_e: IpcMainInvokeEvent, data: unknown) => {
+    if (!(data instanceof ArrayBuffer) && !Buffer.isBuffer(data)) {
+      return { text: "", error: "잘못된 오디오 데이터 형식" };
+    }
+    const buf = Buffer.isBuffer(data) ? data : Buffer.from(new Uint8Array(data as ArrayBuffer));
+    const userKey = getSetting("speechGoogleApiKey") as string | undefined;
+    return recognizePCM(buf, "ko-KR", userKey || undefined);
+  });
 
   // ── Telegram ──────────────────────────────────────────────────────────────
   ipcMain.handle("tikke:telegram:test", async (_e: IpcMainInvokeEvent, text: unknown) => {

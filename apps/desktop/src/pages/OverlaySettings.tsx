@@ -131,6 +131,11 @@ function TestBtn({ label, onClick, color = "var(--primary)" }: TestBtnProps): Re
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
+const LOCAL_LABELS: Record<string, string> = {
+  chat: "채팅", gift: "선물", marquee: "자막 롤",
+  video: "영상", fireworks: "불꽃", translation: "번역 자막",
+};
+
 const EVENT_TYPE_OPTIONS = [
   { value: "gift", label: "선물" }, { value: "follow", label: "팔로우" },
   { value: "subscribe", label: "구독" }, { value: "member", label: "입장" }, { value: "*", label: "모든 이벤트" },
@@ -229,17 +234,23 @@ function RulesList(): React.ReactElement {
 export function OverlaySettings(): React.ReactElement {
   const [status, setStatus] = useState<OverlayStatus | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
+  const [cloudUrls, setCloudUrls] = useState<Record<string, string>>({});
   const [marqueeText, setMarqueeText] = useState("안녕하세요! Tikke 오버레이 테스트입니다 🎉");
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"server" | "rules">("server");
+  const [tab, setTab] = useState<"server" | "rules" | "cloud">("cloud");
 
   const load = useCallback(async () => {
-    const o = getOverlay();
-    if (!o) return;
+    const tikke = (window as unknown as { tikke?: { overlay?: NonNullable<TikkeWindow["tikke"]>["overlay"]; cloudOverlay?: { getUrls: () => Promise<Record<string, string>> } } }).tikke;
     try {
-      const [s, u] = await Promise.all([o.getStatus(), o.getUrls()]);
-      setStatus(s);
-      setUrls(u);
+      if (tikke?.overlay) {
+        const [s, u] = await Promise.all([tikke.overlay.getStatus(), tikke.overlay.getUrls()]);
+        setStatus(s);
+        setUrls(u);
+      }
+      if (tikke?.cloudOverlay) {
+        const cu = await tikke.cloudOverlay.getUrls();
+        setCloudUrls(cu);
+      }
     } catch (err) {
       console.error("[overlay-settings] load error:", err);
     }
@@ -334,14 +345,74 @@ export function OverlaySettings(): React.ReactElement {
 
       {/* Tabs */}
       <div style={{ display: "flex", borderBottom: "1px solid var(--border)" }}>
-        {(["server", "rules"] as const).map((t) => (
+        {(["cloud", "server", "rules"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)} style={{ padding: "7px 18px", background: tab === t ? "rgba(0,242,234,0.1)" : "transparent", border: "none", borderBottom: `2px solid ${tab === t ? "var(--primary)" : "transparent"}`, color: tab === t ? "var(--primary)" : "var(--text-muted)", cursor: "pointer", fontSize: 13, fontWeight: tab === t ? 700 : 400 }}>
-            {t === "server" ? "서버 / 테스트" : "오버레이 규칙"}
+            {t === "cloud" ? "☁ 클라우드 (HTTPS)" : t === "server" ? "로컬 서버" : "오버레이 규칙"}
           </button>
         ))}
       </div>
 
       {tab === "rules" && <RulesList />}
+
+      {tab === "cloud" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ padding: "10px 14px", background: "rgba(0,242,234,0.05)", border: "1px solid rgba(0,242,234,0.15)", borderRadius: 8, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
+            HTTPS로 안전하게 이벤트가 전달됩니다. OBS·TikTok LIVE Studio 모두 지원합니다.<br/>
+            Tikke가 실행 중일 때 이벤트가 전송됩니다.
+          </div>
+          {Object.entries(cloudUrls).length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "16px 0", textAlign: "center" }}>URL 로딩 중...</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {Object.entries(cloudUrls).map(([label, url]) => (
+                <UrlRow key={label} label={label} url={url} />
+              ))}
+            </div>
+          )}
+
+          {/* Test buttons for cloud */}
+          {sectionTitle("테스트 전송")}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <TestBtn label="채팅 테스트"   onClick={sendTestChat}   color="var(--primary)" />
+            <TestBtn label="선물 테스트"   onClick={sendTestGift}   color="#FF0050" />
+            <TestBtn label="불꽃 테스트"   onClick={sendFireworks}  color="#FB923C" />
+            <TestBtn label="전체 지우기"   onClick={sendClear}      color="var(--text-muted)" />
+          </div>
+
+          {sectionTitle("자막 롤 텍스트")}
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              type="text"
+              value={marqueeText}
+              onChange={(e) => setMarqueeText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void sendMarquee(); }}
+              style={inputStyle}
+              placeholder="자막 롤에 표시할 텍스트..."
+            />
+            <button
+              onClick={() => void sendMarquee()}
+              disabled={!marqueeText.trim()}
+              style={{
+                padding: "7px 16px",
+                background: marqueeText.trim() ? "var(--primary)" : "rgba(0,242,234,0.1)",
+                color: marqueeText.trim() ? "#000" : "rgba(0,242,234,0.3)",
+                border: "none",
+                borderRadius: 6,
+                cursor: marqueeText.trim() ? "pointer" : "not-allowed",
+                fontSize: 12,
+                fontWeight: 700,
+                flexShrink: 0,
+              }}
+            >
+              전송
+            </button>
+          </div>
+
+          <div style={{ fontSize: 11, color: "var(--text-muted)", padding: "8px 12px", background: "var(--surface-2)", borderRadius: 6, lineHeight: 1.6 }}>
+            💡 TikTok LIVE Studio → 레이어 추가 → 링크 소스 → URL 붙여넣기
+          </div>
+        </div>
+      )}
 
       {tab === "server" && <>
 
@@ -361,20 +432,20 @@ export function OverlaySettings(): React.ReactElement {
         ))}
       </div>
 
-      {/* OBS 설정 안내 */}
+      {/* 설정 안내 */}
       <div style={{ padding: "12px 16px", background: "rgba(0,242,234,0.04)", border: "1px solid rgba(0,242,234,0.15)", borderRadius: 8, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.8 }}>
-        <div style={{ fontWeight: 700, color: "var(--primary)", marginBottom: 4 }}>OBS Browser Source 설정 방법</div>
-        <div>1. OBS → 소스 추가 → 브라우저</div>
-        <div>2. URL에 아래 주소 중 하나를 입력</div>
-        <div>3. 너비: 1920, 높이: 1080 (방송 해상도에 맞춤)</div>
-        <div>4. "OBS를 통해 오디오 제어" 체크 해제</div>
+        <div style={{ fontWeight: 700, color: "var(--primary)", marginBottom: 4 }}>로컬 오버레이 설정 방법 (같은 PC 권장)</div>
+        <div>• <strong style={{ color: "var(--text)" }}>TikTok LIVE Studio</strong> → 레이어 추가 → 링크 소스 → 아래 URL 입력</div>
+        <div>• <strong style={{ color: "var(--text)" }}>OBS</strong> → 소스 추가 → 브라우저 → 아래 URL 입력</div>
+        <div>• 너비: 1920, 높이: 1080 · 투명 배경 활성화</div>
+        <div>• URL 오른쪽 초록 점 = WebSocket 연결됨 확인용</div>
       </div>
 
       {/* URLs */}
       {sectionTitle("오버레이 URL")}
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
         {Object.entries(urls).map(([key, url]) => (
-          <UrlRow key={key} label={key} url={url} />
+          <UrlRow key={key} label={LOCAL_LABELS[key] ?? key} url={url} />
         ))}
         {Object.keys(urls).length === 0 && (
           <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "8px 0" }}>서버 시작 대기 중...</div>

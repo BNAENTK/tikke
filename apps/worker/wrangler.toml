@@ -1,6 +1,7 @@
 name = "tikke-worker"
 main = "src/index.ts"
 compatibility_date = "2024-04-01"
+account_id = "aebe293192e7178f8accb3c6cc346a12"
 compatibility_flags = ["nodejs_compat"]
 
 # KV namespace for user settings (create with: wrangler kv namespace create TIKKE_SETTINGS)

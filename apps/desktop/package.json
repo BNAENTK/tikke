@@ -1,12 +1,12 @@
 {
   "name": "@tikke/desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "dist:win": "electron-builder --win",
+    "dist:win": "node scripts/prepare-deps.cjs && electron-vite build && electron-builder --win",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "harness:chat": "tsx harness/scenarios/basic-chat.ts",
     "harness:gift": "tsx harness/scenarios/gift-sound.ts",
@@ -42,6 +42,7 @@
   "build": {
     "appId": "com.tikke.desktop",
     "productName": "Tikke",
+    "npmRebuild": false,
     "copyright": "Copyright © 2024 Tikke",
     "icon": "build/icon.png",
     "directories": {

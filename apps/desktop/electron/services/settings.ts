@@ -63,6 +63,9 @@ export interface AppSettings {
   translationDisplayTimeoutMs: number;
   translationLibreUrl: string;
   translationPapagoProxyUrl: string;
+
+  // STT (Speech-to-Text)
+  speechGoogleApiKey: string;
 }
 
 const DEFAULTS: AppSettings = {
@@ -125,6 +128,8 @@ const DEFAULTS: AppSettings = {
   translationDisplayTimeoutMs: 10000,
   translationLibreUrl: "https://libretranslate.com",
   translationPapagoProxyUrl: "",
+
+  speechGoogleApiKey: "",
 };
 
 export function getSetting<K extends keyof AppSettings>(key: K): AppSettings[K] {

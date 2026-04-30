@@ -7,6 +7,7 @@ import type { TranslationProviderName } from "../providers";
 type TikkeWindow = {
   tikke?: {
     settings?: {
+      getAll: () => Promise<Record<string, unknown>>;
       set: (key: string, value: unknown) => Promise<void>;
     };
     overlay?: {
@@ -48,11 +49,25 @@ export function TranslationOverlay(): React.ReactElement {
   const [micError, setMicError] = useState<string | null>(null);
   const [interimText, setInterimText] = useState("");
   const [overlayUrl, setOverlayUrl] = useState("");
+  const [speechApiKey, setSpeechApiKey] = useState("");
+
+  // Load STT API key from settings
+  useEffect(() => {
+    const tikke = (window as unknown as TikkeWindow).tikke;
+    tikke?.settings?.getAll?.().then((all) => {
+      const k = (all as Record<string, unknown>).speechGoogleApiKey;
+      if (typeof k === "string") setSpeechApiKey(k);
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load mic list and overlay URL
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(() => navigator.mediaDevices.enumerateDevices())
+      .then((stream) => {
+        // Release tracks immediately — we only need permission to enumerate
+        stream.getTracks().forEach((t) => t.stop());
+        return navigator.mediaDevices.enumerateDevices();
+      })
       .then((devices) => {
         const audio = devices.filter((d) => d.kind === "audioinput");
         setMics(audio);
@@ -61,7 +76,11 @@ export function TranslationOverlay(): React.ReactElement {
       .catch(() => setMicError("마이크 권한이 필요합니다."));
 
     const tikke = (window as unknown as TikkeWindow).tikke;
-    tikke?.overlay?.getUrls().then((urls) => setOverlayUrl(urls.translation ?? "")).catch(() => {});
+    tikke?.overlay?.getUrls().then((urls) => {
+      // key is English ("translation") — maps to http://127.0.0.1:18181/overlay/translation
+      const url = urls["translation"] ?? Object.values(urls).find((u) => u.includes("/translation")) ?? "";
+      setOverlayUrl(url);
+    }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFinal = useCallback((text: string) => {
@@ -73,7 +92,7 @@ export function TranslationOverlay(): React.ReactElement {
     setInterimText(text);
   }, []);
 
-  const { isSupported } = useSpeechRecognition({ onFinal: handleFinal, onInterim: handleInterim });
+  const { isSupported, sttError } = useSpeechRecognition({ onFinal: handleFinal, onInterim: handleInterim });
 
   // Config setter that also persists to SQLite
   function updateConfig(partial: Partial<typeof config>): void {
@@ -233,6 +252,19 @@ export function TranslationOverlay(): React.ReactElement {
               </button>
             </div>
 
+            {/* STT error */}
+            {sttError && (
+              <div style={{
+                marginTop: 10, padding: "8px 12px",
+                background: "rgba(255,0,80,0.08)",
+                border: "1px solid rgba(255,0,80,0.25)",
+                borderRadius: 6, fontSize: 12, color: "var(--secondary)",
+                lineHeight: 1.5,
+              }}>
+                ⚠ {sttError}
+              </div>
+            )}
+
             {/* Interim text */}
             {interimText && (
               <div style={{
@@ -245,6 +277,33 @@ export function TranslationOverlay(): React.ReactElement {
                 🎤 {interimText}
               </div>
             )}
+          </div>
+
+          {/* STT Engine info */}
+          <div style={{ ...card, borderColor: "rgba(0,242,234,0.2)" }}>
+            <span style={label}>음성 인식 엔진</span>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10, lineHeight: 1.6 }}>
+              MediaRecorder + Google Speech API (비공식) 방식으로 동작합니다.<br/>
+              기본 키로 사용량 제한이 생기면 아래에 직접 Google Cloud Speech API 키를 입력하세요.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="password"
+                value={speechApiKey}
+                onChange={(e) => setSpeechApiKey(e.target.value)}
+                onBlur={() => saveSetting("speechGoogleApiKey", speechApiKey)}
+                placeholder="Google Cloud Speech API 키 (선택)"
+                style={{ ...inputStyle, fontFamily: "monospace", fontSize: 11 }}
+              />
+              {speechApiKey && (
+                <button
+                  onClick={() => { setSpeechApiKey(""); saveSetting("speechGoogleApiKey", ""); }}
+                  style={{ padding: "8px 12px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 7, color: "var(--text-muted)", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  초기화
+                </button>
+              )}
+            </div>
           </div>
 
           {/* OBS URL */}

@@ -189,17 +189,19 @@ class OverlayServer {
   }
 
   getUrls(): Record<string, string> {
-    const ip = getLocalIP();
-    const base = `http://${ip}:${this.httpPort}/overlay`;
+    const base = `http://127.0.0.1:${this.httpPort}/overlay`;
     return {
-      main: base,
-      chat: `${base}/chat`,
-      gift: `${base}/gift`,
-      marquee: `${base}/marquee`,
-      video: `${base}/video`,
-      fireworks: `${base}/fireworks`,
+      chat:        `${base}/chat`,
+      gift:        `${base}/gift`,
+      marquee:     `${base}/marquee`,
+      video:       `${base}/video`,
+      fireworks:   `${base}/fireworks`,
       translation: `${base}/translation`,
     };
+  }
+
+  getLocalIP(): string {
+    return getLocalIP();
   }
 }
 

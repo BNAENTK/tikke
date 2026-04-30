@@ -14,6 +14,7 @@ import { ChatViewer } from "../pages/ChatViewer";
 import { GiftViewer } from "../pages/GiftViewer";
 import { AppSettings } from "../pages/AppSettings";
 import { TranslationOverlay } from "../pages/TranslationOverlay";
+import { Integrations } from "../pages/Integrations";
 import { Login } from "../pages/Login";
 import { useEventStore } from "../stores/eventStore";
 import { useAuthStore } from "../stores/authStore";
@@ -135,6 +136,7 @@ export function App(): React.ReactElement {
       case "translation": return <TranslationOverlay />;
       case "overlays": return <OverlaySettings />;
       case "commands": return <CommandSettings />;
+      case "integrations": return <Integrations />;
       case "settings": return <AppSettings />;
       case "buildinfo": return <BuildInfo />;
       default: return <Dashboard />;

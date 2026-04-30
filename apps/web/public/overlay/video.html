@@ -19,23 +19,25 @@ html, body {
   pointer-events: none;
 }
 #media-wrap.hidden { display: none; }
-video, img { max-width: 80%; max-height: 80%; border-radius: 12px; box-shadow: 0 0 40px rgba(0,0,0,0.6); animation: popIn 0.3s ease; }
-#status { position: fixed; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: #555; transition: background 0.3s; }
-#status.on { background: #34D399; box-shadow: 0 0 6px #34D399; }
+video, img {
+  max-width: 80%;
+  max-height: 80%;
+  border-radius: 12px;
+  box-shadow: 0 0 40px rgba(0,0,0,0.6);
+  animation: popIn 0.3s ease;
+}
 .fade-out { animation: fadeOut 0.4s ease forwards !important; }
-@keyframes popIn {
-  from { opacity: 0; transform: scale(0.8); }
-  to { opacity: 1; transform: scale(1); }
-}
-@keyframes fadeOut {
-  to { opacity: 0; transform: scale(0.8); }
-}
+@keyframes popIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+@keyframes fadeOut { to { opacity: 0; transform: scale(0.8); } }
 </style>
 </head>
 <body>
-<div id="status"></div>
 <div id="media-wrap" class="hidden"></div>
 <script>
+const params = new URLSearchParams(location.search);
+const room = params.get('room') || '';
+const WORKER = 'wss://tikke-worker.logoros11.workers.dev';
+
 const wrap = document.getElementById('media-wrap');
 let hideTimer = null;
 
@@ -44,10 +46,7 @@ function clear() {
   const el = wrap.querySelector('video, img');
   if (el) {
     el.classList.add('fade-out');
-    setTimeout(() => {
-      wrap.innerHTML = '';
-      wrap.classList.add('hidden');
-    }, 400);
+    setTimeout(() => { wrap.innerHTML = ''; wrap.classList.add('hidden'); }, 400);
   } else {
     wrap.innerHTML = '';
     wrap.classList.add('hidden');
@@ -76,27 +75,29 @@ function showImage(url, durationMs) {
   img.alt = '';
   wrap.appendChild(img);
   wrap.classList.remove('hidden');
-  if (durationMs) hideTimer = setTimeout(clear, durationMs);
+  if (durationMs) hideTimer = setTimeout(clear, durationMs || 5000);
 }
 
-function handleMessage(msg) {
-  if (msg.type === 'video' && msg.url) {
-    showVideo(msg.url, msg.durationMs || 0);
-  } else if (msg.type === 'image' && msg.url) {
-    showImage(msg.url, msg.durationMs || 5000);
-  } else if (msg.type === 'clear') {
+function handleEvent(ev) {
+  if (ev.type === 'video' && ev.url) {
+    showVideo(ev.url, ev.durationMs || 0);
+  } else if (ev.type === 'image' && ev.url) {
+    showImage(ev.url, ev.durationMs || 5000);
+  } else if (ev.type === 'clear') {
     clear();
   }
 }
 
-const statusDot = document.getElementById('status');
-let ws, retryTimer;
 function connect() {
-  clearTimeout(retryTimer);
-  ws = new WebSocket(`ws://${window.location.hostname}:18182`);
-  ws.onopen = () => statusDot.classList.add('on');
-  ws.onmessage = e => { try { handleMessage(JSON.parse(e.data)); } catch {} };
-  ws.onclose = () => { statusDot.classList.remove('on'); retryTimer = setTimeout(connect, 2000); };
+  if (!room) return;
+  const ws = new WebSocket(`${WORKER}/overlay/rooms/${room}/ws`);
+  ws.onmessage = e => {
+    try {
+      const d = JSON.parse(e.data);
+      if (d.type === 'events') d.events.forEach(handleEvent);
+    } catch {}
+  };
+  ws.onclose = () => setTimeout(connect, 3000);
   ws.onerror = () => ws.close();
 }
 connect();

@@ -58,6 +58,7 @@
   </style>
 </head>
 <body>
+  <div id="status" style="position:fixed;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:#555;transition:background 0.3s;"></div>
   <div id="container">
     <div id="subtitle-wrap">
       <div class="line" id="line-ko"></div>
@@ -133,8 +134,12 @@
       );
     }
 
+    const statusDot = document.getElementById('status');
+    let retryTimer;
     function connect() {
+      clearTimeout(retryTimer);
       const ws = new WebSocket(`ws://${window.location.hostname}:18182`);
+      ws.onopen = function() { statusDot.classList.add('on'); };
 
       ws.onmessage = function(e) {
         try {
@@ -150,7 +155,7 @@
         }
       };
 
-      ws.onclose = function() { setTimeout(connect, 2000); };
+      ws.onclose = function() { statusDot.classList.remove('on'); retryTimer = setTimeout(connect, 2000); };
       ws.onerror = function() { ws.close(); };
     }
 

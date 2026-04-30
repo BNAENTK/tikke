@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Tikke Chat Overlay</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:transparent;overflow:hidden;width:100%;height:100%;font-family:'Segoe UI',sans-serif}
+#chat{position:fixed;bottom:0;left:0;right:0;padding:12px;display:flex;flex-direction:column;gap:6px;max-height:100vh;overflow:hidden}
+.msg{display:flex;align-items:flex-start;gap:8px;animation:slideIn .3s ease;padding:6px 10px;background:rgba(0,0,0,0.55);border-radius:8px;backdrop-filter:blur(4px);max-width:480px}
+.msg.fade-out{animation:fadeOut .5s ease forwards}
+@keyframes slideIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+@keyframes fadeOut{to{opacity:0;transform:translateX(-20px)}}
+.avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#ff0050,#00f2ea);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff}
+.content{flex:1;min-width:0}
+.nick{font-size:11px;font-weight:700;color:#00f2ea;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.text{font-size:13px;color:#fff;line-height:1.4;word-break:break-word}
+</style>
+</head>
+<body>
+<div id="chat"></div>
+<script>
+const params=new URLSearchParams(location.search);
+const room=params.get('room')||'';
+const maxMsgs=parseInt(params.get('max')||'8',10);
+const timeoutMs=parseInt(params.get('timeout')||'8000',10);
+const WORKER='wss://tikke-worker.logoros11.workers.dev';
+
+let ws,reconnectTimer;
+const msgs=[];
+
+function connect(){
+  if(!room)return;
+  ws=new WebSocket(`${WORKER}/overlay/rooms/${room}/ws`);
+  ws.onmessage=e=>{
+    try{
+      const d=JSON.parse(e.data);
+      if(d.type==='events')d.events.forEach(handleEvent);
+    }catch{}
+  };
+  ws.onclose=()=>{reconnectTimer=setTimeout(connect,3000)};
+}
+
+function handleEvent(ev){
+  if(ev.type!=='chat')return;
+  const nick=ev.user?.nickname||ev.user?.uniqueId||'익명';
+  const text=ev.message||'';
+  if(!text.trim())return;
+  addMsg(nick,text);
+}
+
+function addMsg(nick,text){
+  const el=document.createElement('div');
+  el.className='msg';
+  el.innerHTML=`<div class="avatar">${(nick[0]||'?').toUpperCase()}</div><div class="content"><div class="nick">${esc(nick)}</div><div class="text">${esc(text)}</div></div>`;
+  const chat=document.getElementById('chat');
+  chat.appendChild(el);
+  msgs.push(el);
+  while(msgs.length>maxMsgs){const old=msgs.shift();old.classList.add('fade-out');setTimeout(()=>old.remove(),500)}
+  setTimeout(()=>{el.classList.add('fade-out');setTimeout(()=>{el.remove();const i=msgs.indexOf(el);if(i>=0)msgs.splice(i,1)},500)},timeoutMs);
+}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+connect();
+</script>
+</body>
+</html>

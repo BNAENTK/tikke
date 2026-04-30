@@ -1,6 +1,7 @@
 import type { TikkeEvent } from "@tikke/shared";
 import { getDb, type OverlayRuleRow } from "./db";
 import { overlayServer } from "./overlay-server";
+import { cloudOverlayService } from "./cloud-overlay";
 
 export interface OverlayCondition {
   giftId?: number;
@@ -91,9 +92,13 @@ class OverlayRulesService {
         const text = rule.config.textTemplate
           ? applyTemplate(rule.config.textTemplate, event)
           : this.defaultText(event);
-        overlayServer.broadcast({ type: "marquee", text, durationMs: rule.config.durationMs ?? 6000 });
+        const msg = { type: "marquee" as const, text, durationMs: rule.config.durationMs ?? 6000 };
+        overlayServer.broadcast(msg);
+        void cloudOverlayService.broadcastMessage(msg);
       } else if (rule.overlayType === "fireworks") {
-        overlayServer.broadcast({ type: "fireworks", intensity: rule.config.intensity ?? 3, durationMs: rule.config.durationMs ?? 3000 });
+        const msg = { type: "fireworks" as const, intensity: rule.config.intensity ?? 3, durationMs: rule.config.durationMs ?? 3000 };
+        overlayServer.broadcast(msg);
+        void cloudOverlayService.broadcastMessage(msg);
       }
     }
   }
