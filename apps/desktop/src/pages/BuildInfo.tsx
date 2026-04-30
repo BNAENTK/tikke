@@ -1,9 +1,18 @@
 import React, { useState, useEffect } from "react";
 import type { UpdaterState } from "../../electron/services/updater";
 
+interface SystemInfo {
+  platform: string;
+  arch: string;
+  versions: { electron: string; node: string; chrome: string };
+}
+
 type TikkeWindow = {
   tikke?: {
-    app?: { getVersion: () => Promise<string> };
+    app?: {
+      getVersion: () => Promise<string>;
+      getSystemInfo: () => SystemInfo;
+    };
     updater?: {
       checkForUpdates: () => Promise<void>;
       downloadUpdate: () => Promise<void>;
@@ -35,12 +44,17 @@ const COLOR: Record<UpdaterState["status"], string> = {
 
 export function BuildInfo(): React.ReactElement {
   const [version, setVersion] = useState<string>("...");
+  const [sysInfo, setSysInfo] = useState<SystemInfo>({
+    platform: "—", arch: "—", versions: { electron: "—", node: "—", chrome: "—" },
+  });
   const [updater, setUpdater] = useState<UpdaterState>({ status: "idle" });
 
   const tikke = (window as unknown as TikkeWindow).tikke;
 
   useEffect(() => {
     tikke?.app?.getVersion().then(setVersion).catch(() => {});
+    const info = tikke?.app?.getSystemInfo();
+    if (info) setSysInfo(info);
   }, [tikke]);
 
   useEffect(() => {
@@ -77,24 +91,24 @@ export function BuildInfo(): React.ReactElement {
         </div>
         <div style={rowStyle}>
           <span style={labelStyle}>플랫폼</span>
-          <span style={{ color: "var(--text)" }}>{process.platform} / {process.arch}</span>
+          <span style={{ color: "var(--text)" }}>{sysInfo.platform} / {sysInfo.arch}</span>
         </div>
         <div style={rowStyle}>
           <span style={labelStyle}>Electron</span>
           <span style={{ color: "var(--text-muted)", fontFamily: "monospace", fontSize: 13 }}>
-            {process.versions.electron ?? "—"}
+            {sysInfo.versions.electron || "—"}
           </span>
         </div>
         <div style={rowStyle}>
           <span style={labelStyle}>Node</span>
           <span style={{ color: "var(--text-muted)", fontFamily: "monospace", fontSize: 13 }}>
-            {process.versions.node ?? "—"}
+            {sysInfo.versions.node || "—"}
           </span>
         </div>
         <div style={rowStyle}>
           <span style={labelStyle}>Chrome</span>
           <span style={{ color: "var(--text-muted)", fontFamily: "monospace", fontSize: 13 }}>
-            {process.versions.chrome ?? "—"}
+            {sysInfo.versions.chrome || "—"}
           </span>
         </div>
       </div>

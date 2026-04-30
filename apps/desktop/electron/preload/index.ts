@@ -205,6 +205,15 @@ contextBridge.exposeInMainWorld("tikke", {
   app: {
     getVersion: (): Promise<string> =>
       ipcRenderer.invoke("tikke:app:getVersion"),
+    getSystemInfo: () => ({
+      platform: process.platform,
+      arch: process.arch,
+      versions: {
+        electron: process.versions.electron ?? "",
+        node: process.versions.node ?? "",
+        chrome: process.versions.chrome ?? "",
+      },
+    }),
   },
   updater: {
     checkForUpdates: (): Promise<void> =>
