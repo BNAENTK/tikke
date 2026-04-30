@@ -1,7 +1,7 @@
 {
   "name": "tikke-root",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "scripts": {
     "dev": "pnpm --filter @tikke/desktop dev",
     "dev:web": "pnpm --filter @tikke/web dev",
