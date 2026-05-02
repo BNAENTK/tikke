@@ -63,19 +63,15 @@ export function TranslationOverlay(): React.ReactElement {
 
   const { translate, translationError } = useTranslationEngine();
 
-  const [overlayUrl,        setOverlayUrl]        = useState("");
-  const [overlayDisplayUrl, setOverlayDisplayUrl] = useState("");
-  const [cloudUrl,          setCloudUrl]          = useState("");
+  const [overlayUrl, setOverlayUrl] = useState("");
+  const [cloudUrl,   setCloudUrl]   = useState("");
   const [testText,   setTestText]   = useState("안녕하세요! 번역 테스트입니다.");
   const [diagResult, setDiagResult] = useState<{ step: string; ok: boolean; msg: string }[]>([]);
   const [diagRunning,setDiagRunning]= useState(false);
 
   useEffect(() => {
     const tikke = (window as unknown as TikkeWindow).tikke;
-    tikke?.overlay?.getUrls().then((urls) => {
-      setOverlayUrl(urls["translation"] ?? "");
-      setOverlayDisplayUrl(urls["translation-display"] ?? "");
-    }).catch(() => {});
+    tikke?.overlay?.getUrls().then((urls) => setOverlayUrl(urls["translation"] ?? "")).catch(() => {});
     tikke?.cloudOverlay?.getUrls().then((urls) => setCloudUrl(urls["번역 자막"] ?? "")).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -165,73 +161,33 @@ export function TranslationOverlay(): React.ReactElement {
           {/* 오버레이 URL */}
           <div style={card}>
             <span style={label}>오버레이 URL</span>
-            <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10, lineHeight: 1.6 }}>
-              OBS → 소스 추가 → 브라우저 소스 → 아래 URL 입력.<br/>
-              페이지 자체에서 마이크 음성 인식 + 번역을 수행합니다.<br/>
-              <strong style={{ color: "var(--primary)" }}>Chrome에서 열면 바로 테스트 가능합니다.</strong>
+            <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12, lineHeight: 1.6 }}>
+              TikTok LIVE Studio → 레이어 추가 → 링크 소스에 아래 URL을 입력하세요.<br/>
+              <strong style={{ color: "var(--primary)" }}>Chrome 미리보기를 동시에 열어두면 실시간 자막이 전달됩니다.</strong>
             </p>
+
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <input readOnly value={cloudUrl} style={{ ...inputStyle, fontFamily: "monospace", fontSize: 11 }} />
+              <button
+                onClick={() => void (window as unknown as TikkeWindow).tikke?.clipboard?.write(cloudUrl)}
+                disabled={!cloudUrl}
+                style={{ padding: "8px 14px", background: "rgba(0,242,234,0.12)", border: "1px solid rgba(0,242,234,0.3)", borderRadius: 7, color: "var(--primary)", fontSize: 12, fontWeight: 700, cursor: cloudUrl ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}
+              >복사</button>
+            </div>
 
             {overlayUrl && (
               <button
                 onClick={() => void (window as unknown as TikkeWindow).tikke?.openExternal?.(overlayUrl)}
                 style={{
-                  width: "100%", padding: "10px 0", marginBottom: 12,
-                  background: "rgba(0,242,234,0.12)", border: "1px solid rgba(0,242,234,0.35)",
-                  borderRadius: 7, color: "var(--primary)", fontWeight: 700, fontSize: 13,
+                  width: "100%", padding: "9px 0",
+                  background: "var(--surface-2)", border: "1px solid var(--border)",
+                  borderRadius: 7, color: "var(--text-muted)", fontWeight: 700, fontSize: 12,
                   cursor: "pointer",
                 }}
               >
-                🌐 Chrome으로 미리보기 열기 (실시간 테스트)
+                🌐 Chrome으로 미리보기 열기
               </button>
             )}
-
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 11, color: "var(--primary)", fontWeight: 700, marginBottom: 4 }}>
-                ☁ 클라우드 (TikTok LIVE Studio · OBS 권장)
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input readOnly value={cloudUrl} style={{ ...inputStyle, fontFamily: "monospace", fontSize: 11 }} />
-                <button
-                  onClick={() => void (window as unknown as TikkeWindow).tikke?.clipboard?.write(cloudUrl)}
-                  disabled={!cloudUrl}
-                  style={{ padding: "8px 12px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 7, color: "var(--text-muted)", fontSize: 12, cursor: cloudUrl ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}
-                >복사</button>
-              </div>
-            </div>
-
-            {/* TikTok LIVE Studio용 — 클라우드 HTTPS */}
-            <div style={{ marginBottom: 12, padding: "12px 14px", background: "rgba(244,114,182,0.07)", border: "1px solid rgba(244,114,182,0.25)", borderRadius: 8 }}>
-              <div style={{ fontSize: 12, color: "#F472B6", fontWeight: 700, marginBottom: 6 }}>
-                🎵 TikTok LIVE Studio용 (클라우드 HTTPS)
-              </div>
-              <p style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 8, lineHeight: 1.6 }}>
-                ① 아래 URL을 TikTok LIVE Studio → 레이어 추가 → 링크 소스에 입력<br/>
-                ② <strong style={{ color: "var(--primary)" }}>Chrome 미리보기를 동시에 열어두세요</strong> — Chrome이 마이크 인식+번역을 처리해 이 화면으로 전달합니다
-              </p>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input readOnly value={cloudUrl} style={{ ...inputStyle, fontFamily: "monospace", fontSize: 11 }} />
-                <button
-                  onClick={() => void (window as unknown as TikkeWindow).tikke?.clipboard?.write(cloudUrl)}
-                  disabled={!cloudUrl}
-                  style={{ padding: "8px 14px", background: "rgba(244,114,182,0.12)", border: "1px solid rgba(244,114,182,0.3)", borderRadius: 7, color: "#F472B6", fontSize: 12, fontWeight: 700, cursor: cloudUrl ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}
-                >복사</button>
-              </div>
-            </div>
-
-            {/* Chrome / OBS용 — localhost STT 포함 */}
-            <div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, marginBottom: 4 }}>
-                🖥 Chrome / OBS 전용 (STT 포함, 같은 PC)
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input readOnly value={overlayUrl} style={{ ...inputStyle, fontFamily: "monospace", fontSize: 11 }} />
-                <button
-                  onClick={() => void (window as unknown as TikkeWindow).tikke?.clipboard?.write(overlayUrl)}
-                  disabled={!overlayUrl}
-                  style={{ padding: "8px 12px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 7, color: "var(--text-muted)", fontSize: 12, cursor: overlayUrl ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}
-                >복사</button>
-              </div>
-            </div>
           </div>
 
           {/* 테스트 패널 */}

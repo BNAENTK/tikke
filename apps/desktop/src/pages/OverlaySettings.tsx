@@ -491,11 +491,13 @@ export function OverlaySettings(): React.ReactElement {
             <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "16px 0", textAlign: "center" }}>URL 로딩 중...</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {Object.entries(cloudUrls).map(([label, url]) => {
-                const dKey = CLOUD_DURATION_KEY[label];
-                const ms = dKey ? durations[dKey] : 0;
-                return <UrlRow key={label} label={label} url={withDuration(url, ms)} />;
-              })}
+              {Object.entries(cloudUrls)
+                .filter(([label]) => label !== "번역 자막")
+                .map(([label, url]) => {
+                  const dKey = CLOUD_DURATION_KEY[label];
+                  const ms = dKey ? durations[dKey] : 0;
+                  return <UrlRow key={label} label={label} url={withDuration(url, ms)} />;
+                })}
             </div>
           )}
 
@@ -606,8 +608,7 @@ export function OverlaySettings(): React.ReactElement {
       </div>
       <div style={{ padding: "10px 14px", background: "rgba(255,100,50,0.06)", border: "1px solid rgba(255,100,50,0.2)", borderRadius: 8, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.7, marginTop: 4 }}>
         <b style={{ color: "#FB923C" }}>⚠ TikTok LIVE Studio</b>는 로컬 IP 접속을 차단하는 경우가 있습니다.<br />
-        동작하지 않으면 <b style={{ color: "var(--primary)" }}>☁ 클라우드 탭</b>의 HTTPS URL을 사용하세요.<br />
-        번역 자막 URL은 <b style={{ color: "var(--text)" }}>연동 → 번역 자막</b> 페이지에서 확인하세요.
+        동작하지 않으면 <b style={{ color: "var(--primary)" }}>☁ 클라우드 탭</b>의 HTTPS URL을 사용하세요.
       </div>
 
       {/* Test Buttons */}
