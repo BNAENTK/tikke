@@ -1,5 +1,6 @@
 import type { TikkeEvent } from "@tikke/shared";
 import type { OverlayMessage } from "./overlay-server";
+import { getSetting, setSetting } from "./settings";
 
 const WORKER_URL = "https://tikke-worker.logoros11.workers.dev";
 const PAGES_URL = "https://tikke-web.pages.dev";
@@ -12,13 +13,23 @@ function randomKey(): string {
 class CloudOverlayService {
   private roomKey: string | null = null;
 
+  /** Call after DB is initialized to restore persisted room key. */
+  init(): void {
+    const saved = getSetting("cloudOverlayRoomKey");
+    if (saved) this.roomKey = saved;
+  }
+
   getOrCreateRoomKey(): string {
-    if (!this.roomKey) this.roomKey = randomKey();
+    if (!this.roomKey) {
+      this.roomKey = randomKey();
+      setSetting("cloudOverlayRoomKey", this.roomKey);
+    }
     return this.roomKey;
   }
 
   setRoomKey(key: string): void {
     this.roomKey = key;
+    setSetting("cloudOverlayRoomKey", key);
   }
 
   getRoomKey(): string {

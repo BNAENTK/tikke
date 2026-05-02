@@ -64,8 +64,38 @@ export interface AppSettings {
   translationLibreUrl: string;
   translationPapagoProxyUrl: string;
 
+  // Overlay display durations
+  overlayChatDurationMs: number;
+  overlayGiftDurationMs: number;
+  overlayFireworksDurationMs: number;
+  overlayMarqueeDurationMs: number;
+  overlayTranslationDurationMs: number;
+  cloudOverlayRoomKey: string;
+
   // STT (Speech-to-Text)
   speechGoogleApiKey: string;
+
+  // Minecraft RCON
+  minecraftEnabled: boolean;
+  minecraftHost: string;
+  minecraftPort: number;
+  minecraftPassword: string;
+  minecraftOnFollow: boolean;
+  minecraftOnGift: boolean;
+  minecraftOnSubscribe: boolean;
+  minecraftGiftMinDiamonds: number;
+  minecraftCmdFollow: string;
+  minecraftCmdGift: string;
+  minecraftCmdSubscribe: string;
+
+  // GTA Online Bridge
+  gtaEnabled: boolean;
+  gtaUrl: string;
+  gtaSecret: string;
+  gtaOnFollow: boolean;
+  gtaOnGift: boolean;
+  gtaOnSubscribe: boolean;
+  gtaGiftMinDiamonds: number;
 }
 
 const DEFAULTS: AppSettings = {
@@ -130,6 +160,34 @@ const DEFAULTS: AppSettings = {
   translationPapagoProxyUrl: "",
 
   speechGoogleApiKey: "",
+
+  minecraftEnabled: false,
+  minecraftHost: "localhost",
+  minecraftPort: 25575,
+  minecraftPassword: "",
+  minecraftOnFollow: true,
+  minecraftOnGift: true,
+  minecraftOnSubscribe: true,
+  minecraftGiftMinDiamonds: 0,
+  minecraftCmdFollow: "tellraw @a [\"\",{\"text\":\"[Tikke] \",\"color\":\"yellow\"},{\"text\":\"{nickname}\",\"color\":\"green\"},{\"text\":\"님이 팔로우!\",\"color\":\"white\"}]",
+  minecraftCmdGift: "tellraw @a [\"\",{\"text\":\"[Tikke] \",\"color\":\"yellow\"},{\"text\":\"{nickname}\",\"color\":\"gold\"},{\"text\":\"님 {giftName} ◈{diamonds} 선물!\",\"color\":\"white\"}]",
+  minecraftCmdSubscribe: "tellraw @a [\"\",{\"text\":\"[Tikke] \",\"color\":\"yellow\"},{\"text\":\"{nickname}\",\"color\":\"aqua\"},{\"text\":\"님이 구독!\",\"color\":\"white\"}]",
+
+  gtaEnabled: false,
+  gtaUrl: "http://localhost:8088/tikke",
+  gtaSecret: "",
+  gtaOnFollow: true,
+  gtaOnGift: true,
+  gtaOnSubscribe: true,
+  gtaGiftMinDiamonds: 0,
+
+  overlayChatDurationMs: 0,
+  overlayGiftDurationMs: 6000,
+  overlayFireworksDurationMs: 3000,
+  overlayMarqueeDurationMs: 8000,
+  overlayTranslationDurationMs: 10000,
+
+  cloudOverlayRoomKey: "",
 };
 
 export function getSetting<K extends keyof AppSettings>(key: K): AppSettings[K] {

@@ -96,23 +96,26 @@ function launchFireworks(intensity, durationMs) {
 
 function handleEvent(ev) {
   if (ev.type === 'fireworks') {
-    launchFireworks(ev.intensity || 3, ev.durationMs || 3000);
+    const defaultDur = parseInt(params.get('duration') || '3000', 10);
+    launchFireworks(ev.intensity || 3, ev.durationMs || defaultDur);
   } else if (ev.type === 'clear') {
     particles.length = 0;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 }
 
+let pingTimer;
 function connect() {
   if (!room) return;
   const ws = new WebSocket(`${WORKER}/overlay/rooms/${room}/ws`);
+  ws.onopen = () => { clearInterval(pingTimer); pingTimer = setInterval(() => { if (ws.readyState === 1) ws.send('{"type":"ping"}'); }, 25000); };
   ws.onmessage = e => {
     try {
       const d = JSON.parse(e.data);
       if (d.type === 'events') d.events.forEach(handleEvent);
     } catch {}
   };
-  ws.onclose = () => setTimeout(connect, 3000);
+  ws.onclose = () => { clearInterval(pingTimer); setTimeout(connect, 3000); };
   ws.onerror = () => ws.close();
 }
 connect();

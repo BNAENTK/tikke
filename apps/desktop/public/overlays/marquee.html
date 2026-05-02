@@ -23,6 +23,8 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
   </div>
 </div>
 <script>
+const params = new URLSearchParams(location.search);
+const defaultDuration = parseInt(params.get('duration') || '8000', 10);
 const wrap = document.getElementById('marquee-wrap');
 const track = document.getElementById('marquee-track');
 const text1 = document.getElementById('marquee-text');
@@ -34,28 +36,38 @@ function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt
 
 function startMarquee(text, durationMs) {
   if (animFrame) cancelAnimationFrame(animFrame);
-  if (hideTimer) clearTimeout(hideTimer);
+  if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
   const safe = esc(text);
   text1.innerHTML = safe; text2.innerHTML = safe;
   wrap.classList.remove('hidden');
   const trackWidth = text1.offsetWidth + 120;
-  startX = wrap.offsetWidth;
+  startX = wrap.offsetWidth || window.innerWidth;
   track.style.transform = `translateX(${startX}px)`;
   function step() {
     startX -= speed;
     track.style.transform = `translateX(${startX}px)`;
-    if (startX < -trackWidth) startX = wrap.offsetWidth;
+    if (startX < -trackWidth) startX = wrap.offsetWidth || window.innerWidth;
     animFrame = requestAnimationFrame(step);
   }
   animFrame = requestAnimationFrame(step);
-  if (durationMs > 0) {
-    hideTimer = setTimeout(() => { cancelAnimationFrame(animFrame); animFrame = null; wrap.classList.add('hidden'); }, durationMs);
+  const d = durationMs > 0 ? durationMs : defaultDuration;
+  if (d > 0) {
+    hideTimer = setTimeout(() => {
+      if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+      wrap.classList.add('hidden');
+      hideTimer = null;
+    }, d);
   }
 }
 
 function handleMessage(msg) {
-  if (msg.type === 'marquee' && msg.text) { startMarquee(msg.text, msg.durationMs || 8000); }
-  else if (msg.type === 'clear') { if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; } if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; } wrap.classList.add('hidden'); }
+  if (msg.type === 'marquee' && msg.text) {
+    startMarquee(msg.text, msg.durationMs || defaultDuration);
+  } else if (msg.type === 'clear') {
+    if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+    wrap.classList.add('hidden');
+  }
 }
 
 let ws, retryTimer;

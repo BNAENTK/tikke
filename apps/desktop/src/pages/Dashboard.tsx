@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useEventStore } from "../stores/eventStore";
 import { useLiveStore } from "../stores/liveStore";
 import type { TikkeEvent } from "@tikke/shared";
@@ -11,6 +11,7 @@ type TikkeWindow = {
       connect: (username: string) => Promise<{ ok?: boolean; error?: string }>;
       disconnect: () => Promise<void>;
     };
+    app?: { getVersion: () => Promise<string> };
   };
 };
 
@@ -102,10 +103,15 @@ const MOCK_TYPES = [
 
 export function Dashboard(): React.ReactElement {
   const events = useEventStore((s) => s.events);
-  const addEvent = useEventStore((s) => s.addEvent);
   const { status, username: connectedUsername, error: liveError, setStatus, setUsername } = useLiveStore();
   const [inputUsername, setInputUsername] = useState("");
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [appVersion, setAppVersion] = useState("");
+
+  useEffect(() => {
+    const tikke = (window as unknown as TikkeWindow).tikke;
+    void tikke?.app?.getVersion().then((v) => setAppVersion(v));
+  }, []);
 
   const isConnected = status === "connected";
   const isBusy = status === "connecting";
@@ -141,10 +147,8 @@ export function Dashboard(): React.ReactElement {
   }
 
   function sendMock(type: TikkeEvent["type"]): void {
-    const event = makeMockEvent(type);
-    addEvent(event);
     const tikke = (window as unknown as TikkeWindow).tikke;
-    void tikke?.events?.mock(event);
+    void tikke?.events?.mock(makeMockEvent(type));
   }
 
   async function sendStress(): Promise<void> {
@@ -165,7 +169,7 @@ export function Dashboard(): React.ReactElement {
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: -0.5, marginBottom: 4 }}>대시보드</h1>
         <p style={{ color: "var(--text-muted)", fontSize: 12 }}>
-          Tikke v0.1.0 — TikTok LIVE 방송 툴킷
+          Tikke {appVersion ? `v${appVersion}` : ""} — TikTok LIVE 방송 툴킷
         </p>
       </div>
 

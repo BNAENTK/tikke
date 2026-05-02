@@ -53,15 +53,11 @@ export const DEFAULT_CONFIG: TranslationConfig = {
 };
 
 interface TranslationStore {
-  isListening: boolean;
-  selectedMicId: string;
   currentSubtitle: TranslationSubtitle | null;
   history: TranslationSubtitle[];
   config: TranslationConfig;
   configLoaded: boolean;
 
-  setIsListening: (v: boolean) => void;
-  setSelectedMicId: (id: string) => void;
   setCurrentSubtitle: (s: TranslationSubtitle | null) => void;
   addToHistory: (s: TranslationSubtitle) => void;
   setConfig: (c: Partial<TranslationConfig>) => void;
@@ -69,15 +65,11 @@ interface TranslationStore {
 }
 
 export const useTranslationStore = create<TranslationStore>((set) => ({
-  isListening: false,
-  selectedMicId: "",
   currentSubtitle: null,
   history: [],
   config: DEFAULT_CONFIG,
   configLoaded: false,
 
-  setIsListening: (v) => set({ isListening: v }),
-  setSelectedMicId: (id) => set({ selectedMicId: id }),
   setCurrentSubtitle: (s) => set({ currentSubtitle: s }),
   addToHistory: (s) =>
     set((state) => ({ history: [...state.history.slice(-49), s] })),

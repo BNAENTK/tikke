@@ -15,6 +15,7 @@
     "harness:stress": "tsx harness/runners/queue-stress-runner.ts"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "@supabase/supabase-js": "^2.104.1",
     "@tikke/shared": "workspace:*",
     "electron-updater": "^6.1.8",
@@ -24,10 +25,10 @@
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
-    "@types/ws": "^8.5.10",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.0",
     "@types/sql.js": "^1.4.11",
+    "@types/ws": "^8.5.10",
     "@vitejs/plugin-react": "^4.2.1",
     "electron": "30.5.1",
     "electron-builder": "^24.13.3",
@@ -66,7 +67,12 @@
     ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.png"
     },

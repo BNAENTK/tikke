@@ -1,7 +1,9 @@
-import { ipcMain, IpcMainInvokeEvent, BrowserWindow, shell, dialog, app } from "electron";
+import { ipcMain, IpcMainInvokeEvent, BrowserWindow, shell, dialog, app, clipboard, net } from "electron";
 import { randomUUID } from "crypto";
 import { checkForUpdates, downloadUpdate, installUpdate } from "../services/updater";
 import { sendTelegramMessage } from "../services/telegram";
+import { rconSendCommand } from "../services/minecraft";
+import { gtaPost } from "../services/gta-bridge";
 import { pushSettingsToCloud, pullSettingsFromCloud } from "../services/cloud-sync";
 import { cloudOverlayService } from "../services/cloud-overlay";
 import { getSetting, setSetting, getAllSettings } from "../services/settings";
@@ -198,6 +200,59 @@ export function registerIpcHandlers(
     void cloudOverlayService.broadcastMessage(msg as OverlayMessage);
   });
 
+  // Forward translation_result from Chrome STT to cloud overlay (Cloudflare DO → TikTok LIVE Studio)
+  overlayServer.onClientMessage((raw) => {
+    const msg = raw as { type?: string; original?: string; translations?: Record<string, string> };
+    if (msg.type !== "translation_result" || !msg.original) return;
+    const s = getAllSettings();
+    const style = {
+      showOriginal: s.translationShowOriginal !== false,
+      enabledLangs: { en: s.translationLangEn !== false, ja: s.translationLangJa !== false, "zh-CN": s.translationLangZhCN !== false },
+      fontSizes:  { ko: Number(s.translationFontSizeKo ?? 28), en: Number(s.translationFontSizeEn ?? 24), ja: Number(s.translationFontSizeJa ?? 22), "zh-CN": Number(s.translationFontSizeZhCN ?? 22) },
+      colors:     { ko: String(s.translationColorKo ?? "#FFFFFF"), en: String(s.translationColorEn ?? "#A7F3D0"), ja: String(s.translationColorJa ?? "#BAE6FD"), "zh-CN": String(s.translationColorZhCN ?? "#FDE68A") },
+      strokeWidth: Number(s.translationStrokeWidth ?? 2),
+      shadowBlur:  Number(s.translationShadowBlur  ?? 6),
+      shadowColor: String(s.translationShadowColor  ?? "#000000"),
+      displayTimeoutMs: Number(s.translationDisplayTimeoutMs ?? 10000),
+    };
+    void cloudOverlayService.broadcastMessage({
+      type: "translation",
+      payload: { subtitle: { original: msg.original, translations: msg.translations ?? {} }, style },
+    } as unknown as OverlayMessage);
+  });
+
+  // Push current translation style config to every newly connected WS client
+  overlayServer.onClientConnect((send) => {
+    const s = getAllSettings();
+    send({
+      type: "translation_config" as OverlayMessage["type"],
+      payload: {
+        showOriginal: s.translationShowOriginal !== false,
+        enabledLangs: {
+          en:     s.translationLangEn     !== false,
+          ja:     s.translationLangJa     !== false,
+          "zh-CN": s.translationLangZhCN  !== false,
+        },
+        fontSizes: {
+          ko: Number(s.translationFontSizeKo  ?? 28),
+          en: Number(s.translationFontSizeEn  ?? 24),
+          ja: Number(s.translationFontSizeJa  ?? 22),
+          "zh-CN": Number(s.translationFontSizeZhCN ?? 22),
+        },
+        colors: {
+          ko: String(s.translationColorKo   ?? "#FFFFFF"),
+          en: String(s.translationColorEn   ?? "#A7F3D0"),
+          ja: String(s.translationColorJa   ?? "#BAE6FD"),
+          "zh-CN": String(s.translationColorZhCN ?? "#FDE68A"),
+        },
+        strokeWidth:     Number(s.translationStrokeWidth    ?? 2),
+        shadowBlur:      Number(s.translationShadowBlur     ?? 6),
+        shadowColor:     String(s.translationShadowColor    ?? "#000000"),
+        displayTimeoutMs: Number(s.translationDisplayTimeoutMs ?? 10000),
+      },
+    } as unknown as OverlayMessage);
+  });
+
   // ── Overlay Rules ─────────────────────────────────────────────────────────
   ipcMain.handle("tikke:overlayRules:list", () => overlayRulesService.getRules());
 
@@ -272,10 +327,62 @@ export function registerIpcHandlers(
     return recognizePCM(buf, "ko-KR", userKey || undefined);
   });
 
+  // ── Shell ─────────────────────────────────────────────────────────────────
+  ipcMain.handle("tikke:shell:openExternal", (_e: IpcMainInvokeEvent, url: unknown) => {
+    if (typeof url !== "string" || !url.startsWith("http")) return;
+    void shell.openExternal(url);
+  });
+
+  // ── Translation (main process fetch — no CORS) ───────────────────────────
+  ipcMain.handle("tikke:translate", async (_e: IpcMainInvokeEvent, text: unknown, source: unknown, target: unknown) => {
+    if (typeof text !== "string" || typeof source !== "string" || typeof target !== "string") {
+      return { text: "", error: "잘못된 인수" };
+    }
+    try {
+      const url = new URL("https://translate.googleapis.com/translate_a/single");
+      url.searchParams.set("client", "gtx");
+      url.searchParams.set("sl", source);
+      url.searchParams.set("tl", target);
+      url.searchParams.set("dt", "t");
+      url.searchParams.set("q", text);
+      const res = await net.fetch(url.toString(), {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+      });
+      if (!res.ok) return { text: "", error: `HTTP ${res.status}` };
+      const data = (await res.json()) as [string, ...unknown[]][][][];
+      const translated = data[0].map((s) => String(s[0] ?? "")).join("").trim();
+      return { text: translated };
+    } catch (err) {
+      return { text: "", error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  // ── Minecraft RCON ────────────────────────────────────────────────────────
+  ipcMain.handle("tikke:minecraft:test", async (_e: IpcMainInvokeEvent) => {
+    const host     = getSetting("minecraftHost");
+    const port     = getSetting("minecraftPort");
+    const password = getSetting("minecraftPassword");
+    if (!host || !password) return { ok: false, error: "Host 또는 Password가 설정되지 않았습니다." };
+    return rconSendCommand(host, port, password, "say [Tikke] RCON 연결 테스트 성공!");
+  });
+
+  // ── GTA Bridge ────────────────────────────────────────────────────────────
+  ipcMain.handle("tikke:gta:test", async (_e: IpcMainInvokeEvent) => {
+    const url    = getSetting("gtaUrl");
+    const secret = getSetting("gtaSecret");
+    if (!url) return { ok: false, error: "URL이 설정되지 않았습니다." };
+    return gtaPost(url, { type: "ping", message: "Tikke GTA Bridge 연결 테스트" }, secret);
+  });
+
   // ── Telegram ──────────────────────────────────────────────────────────────
   ipcMain.handle("tikke:telegram:test", async (_e: IpcMainInvokeEvent, text: unknown) => {
     const msg = typeof text === "string" && text.trim() ? text : "✅ Tikke Telegram 연결 테스트";
     return sendTelegramMessage(msg);
+  });
+
+  // ── Clipboard ─────────────────────────────────────────────────────────────
+  ipcMain.handle("tikke:clipboard:write", (_: IpcMainInvokeEvent, text: string) => {
+    clipboard.writeText(String(text));
   });
 
   // ── App / Updater ─────────────────────────────────────────────────────────

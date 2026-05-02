@@ -1,5 +1,4 @@
 export class OverlayRoom implements DurableObject {
-  private sessions = new Map<WebSocket, { userId?: string }>();
   private config: Record<string, unknown> = {};
   private createdBy: string | null = null;
   private state: DurableObjectState;
@@ -21,7 +20,6 @@ export class OverlayRoom implements DurableObject {
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
       this.state.acceptWebSocket(server);
-      this.sessions.set(server, {});
       return new Response(null, { status: 101, webSocket: client });
     }
 
@@ -37,7 +35,7 @@ export class OverlayRoom implements DurableObject {
 
     if (url.pathname === "/info") {
       return new Response(JSON.stringify({
-        clientCount: this.sessions.size,
+        clientCount: this.state.getWebSockets().length,
         createdBy: this.createdBy,
         config: this.config,
       }), { headers: { "Content-Type": "application/json" } });
@@ -46,18 +44,16 @@ export class OverlayRoom implements DurableObject {
     if (url.pathname === "/broadcast" && request.method === "POST") {
       const { events } = await request.json<{ events: unknown[] }>();
       this.broadcast(JSON.stringify({ type: "events", events }));
-      return new Response(JSON.stringify({ sent: this.sessions.size }), { headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ sent: this.state.getWebSockets().length }), { headers: { "Content-Type": "application/json" } });
     }
 
     return new Response("Not Found", { status: 404 });
   }
 
   webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): void {
-    // Client → broadcast to all other clients
     if (typeof message === "string") {
       try {
         const parsed = JSON.parse(message) as { type?: string };
-        // Only allow safe overlay message types
         const allowed = new Set(["chat", "gift", "marquee", "fireworks", "clear", "video", "image"]);
         if (parsed.type && allowed.has(parsed.type)) {
           this.broadcastExcept(ws, message);
@@ -66,24 +62,19 @@ export class OverlayRoom implements DurableObject {
     }
   }
 
-  webSocketClose(ws: WebSocket): void {
-    this.sessions.delete(ws);
-  }
-
-  webSocketError(ws: WebSocket): void {
-    this.sessions.delete(ws);
-  }
+  webSocketClose(): void {}
+  webSocketError(): void {}
 
   private broadcast(msg: string): void {
-    for (const [ws] of this.sessions) {
-      try { ws.send(msg); } catch { this.sessions.delete(ws); }
+    for (const ws of this.state.getWebSockets()) {
+      try { ws.send(msg); } catch {}
     }
   }
 
   private broadcastExcept(sender: WebSocket, msg: string): void {
-    for (const [ws] of this.sessions) {
+    for (const ws of this.state.getWebSockets()) {
       if (ws !== sender) {
-        try { ws.send(msg); } catch { this.sessions.delete(ws); }
+        try { ws.send(msg); } catch {}
       }
     }
   }

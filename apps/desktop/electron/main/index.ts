@@ -15,6 +15,8 @@ import { commandService } from "../services/command-service";
 import { initUpdater } from "../services/updater";
 import { cloudOverlayService } from "../services/cloud-overlay";
 import { initTelegram } from "../services/telegram";
+import { initMinecraft } from "../services/minecraft";
+import { initGtaBridge } from "../services/gta-bridge";
 import type { TikkeEvent } from "@tikke/shared";
 import type { Session } from "../services/supabase";
 
@@ -146,6 +148,9 @@ app.whenReady().then(async () => {
 
   await initDb();
 
+  // Restore persisted cloud overlay room key
+  cloudOverlayService.init();
+
   // Restore session before creating window so renderer can call getSession()
   // synchronously on mount and receive the already-set session.
   let restoredSession: Session | null = null;
@@ -169,6 +174,8 @@ app.whenReady().then(async () => {
   if (mainWindow) commandService.init(mainWindow);
   if (mainWindow) initUpdater(mainWindow);
   initTelegram();
+  initMinecraft();
+  initGtaBridge();
 
   // Load overlay rules from DB
   overlayRulesService.reload();

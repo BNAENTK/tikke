@@ -26,8 +26,62 @@ interface OverlayRule {
   createdAt: number;
 }
 
+interface DurationSettings {
+  overlayChatDurationMs: number;
+  overlayGiftDurationMs: number;
+  overlayFireworksDurationMs: number;
+  overlayMarqueeDurationMs: number;
+  overlayTranslationDurationMs: number;
+}
+
+const DURATION_DEFAULTS: DurationSettings = {
+  overlayChatDurationMs: 0,
+  overlayGiftDurationMs: 6000,
+  overlayFireworksDurationMs: 3000,
+  overlayMarqueeDurationMs: 8000,
+  overlayTranslationDurationMs: 10000,
+};
+
+// Local URL key → duration setting key
+const LOCAL_DURATION_KEY: Record<string, keyof DurationSettings> = {
+  chat:      "overlayChatDurationMs",
+  gift:      "overlayGiftDurationMs",
+  fireworks: "overlayFireworksDurationMs",
+  marquee:   "overlayMarqueeDurationMs",
+};
+
+// Cloud URL label → duration setting key
+const CLOUD_DURATION_KEY: Record<string, keyof DurationSettings> = {
+  "채팅":      "overlayChatDurationMs",
+  "선물":      "overlayGiftDurationMs",
+  "불꽃":      "overlayFireworksDurationMs",
+  "자막 롤":   "overlayMarqueeDurationMs",
+  "번역 자막": "overlayTranslationDurationMs",
+};
+
+const DURATION_LABELS: Record<keyof DurationSettings, string> = {
+  overlayChatDurationMs:        "채팅 표시 시간 (0=유지)",
+  overlayGiftDurationMs:        "선물 팝업 시간",
+  overlayFireworksDurationMs:   "불꽃 지속 시간",
+  overlayMarqueeDurationMs:     "자막 롤 지속 시간",
+  overlayTranslationDurationMs: "번역 자막 표시 시간",
+};
+
+function withDuration(url: string, ms: number): string {
+  if (ms <= 0 && url.includes("?")) return `${url}&duration=0`;
+  if (ms <= 0) return `${url}?duration=0`;
+  return url.includes("?") ? `${url}&duration=${ms}` : `${url}?duration=${ms}`;
+}
+
 type TikkeWindow = {
   tikke?: {
+    clipboard?: {
+      write: (text: string) => Promise<void>;
+    };
+    settings?: {
+      getAll: () => Promise<Record<string, unknown>>;
+      set: (key: string, value: unknown) => Promise<void>;
+    };
     overlay?: {
       getStatus: () => Promise<OverlayStatus>;
       getUrls: () => Promise<Record<string, string>>;
@@ -62,10 +116,12 @@ function UrlRow({ label, url }: UrlRowProps): React.ReactElement {
   const [copied, setCopied] = useState(false);
 
   function copy(): void {
-    navigator.clipboard.writeText(url).then(() => {
+    const cb = (window as unknown as TikkeWindow).tikke?.clipboard;
+    if (!cb) return;
+    void cb.write(url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    }).catch(() => {});
+    });
   }
 
   return (
@@ -235,12 +291,16 @@ export function OverlaySettings(): React.ReactElement {
   const [status, setStatus] = useState<OverlayStatus | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [cloudUrls, setCloudUrls] = useState<Record<string, string>>({});
+  const [durations, setDurations] = useState<DurationSettings>(DURATION_DEFAULTS);
+  const [roomKey, setRoomKey] = useState("");
+  const [roomKeyInput, setRoomKeyInput] = useState("");
+  const [roomKeySaved, setRoomKeySaved] = useState(false);
   const [marqueeText, setMarqueeText] = useState("안녕하세요! Tikke 오버레이 테스트입니다 🎉");
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"server" | "rules" | "cloud">("cloud");
 
   const load = useCallback(async () => {
-    const tikke = (window as unknown as { tikke?: { overlay?: NonNullable<TikkeWindow["tikke"]>["overlay"]; cloudOverlay?: { getUrls: () => Promise<Record<string, string>> } } }).tikke;
+    const tikke = (window as unknown as TikkeWindow & { tikke?: { cloudOverlay?: { getUrls: () => Promise<Record<string, string>>; getRoomKey: () => Promise<string>; setRoomKey: (k: string) => Promise<void> } } }).tikke;
     try {
       if (tikke?.overlay) {
         const [s, u] = await Promise.all([tikke.overlay.getStatus(), tikke.overlay.getUrls()]);
@@ -248,13 +308,50 @@ export function OverlaySettings(): React.ReactElement {
         setUrls(u);
       }
       if (tikke?.cloudOverlay) {
-        const cu = await tikke.cloudOverlay.getUrls();
+        const [cu, rk] = await Promise.all([
+          tikke.cloudOverlay.getUrls(),
+          tikke.cloudOverlay.getRoomKey(),
+        ]);
         setCloudUrls(cu);
+        setRoomKey(rk);
+        setRoomKeyInput(rk);
+      }
+      if (tikke?.settings) {
+        const all = await tikke.settings.getAll();
+        setDurations({
+          overlayChatDurationMs:        Number(all.overlayChatDurationMs        ?? DURATION_DEFAULTS.overlayChatDurationMs),
+          overlayGiftDurationMs:        Number(all.overlayGiftDurationMs        ?? DURATION_DEFAULTS.overlayGiftDurationMs),
+          overlayFireworksDurationMs:   Number(all.overlayFireworksDurationMs   ?? DURATION_DEFAULTS.overlayFireworksDurationMs),
+          overlayMarqueeDurationMs:     Number(all.overlayMarqueeDurationMs     ?? DURATION_DEFAULTS.overlayMarqueeDurationMs),
+          overlayTranslationDurationMs: Number(all.overlayTranslationDurationMs ?? DURATION_DEFAULTS.overlayTranslationDurationMs),
+        });
       }
     } catch (err) {
       console.error("[overlay-settings] load error:", err);
     }
   }, []);
+
+  async function handleRoomKeySave(): Promise<void> {
+    const k = roomKeyInput.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (!k || k.length < 8) return;
+    const tikke = (window as unknown as TikkeWindow & { tikke?: { cloudOverlay?: { setRoomKey: (k: string) => Promise<void>; getUrls: () => Promise<Record<string, string>> } } }).tikke;
+    await tikke?.cloudOverlay?.setRoomKey(k);
+    setRoomKey(k);
+    setRoomKeyInput(k);
+    setRoomKeySaved(true);
+    setTimeout(() => setRoomKeySaved(false), 2000);
+    // Reload URLs with new key
+    if (tikke?.cloudOverlay) {
+      const cu = await tikke.cloudOverlay.getUrls();
+      setCloudUrls(cu);
+    }
+  }
+
+  async function handleDurationSet(key: keyof DurationSettings, value: number): Promise<void> {
+    const tikke = (window as unknown as TikkeWindow).tikke;
+    await tikke?.settings?.set(key, value);
+    setDurations((prev) => ({ ...prev, [key]: value }));
+  }
 
   useEffect(() => {
     void load();
@@ -360,13 +457,45 @@ export function OverlaySettings(): React.ReactElement {
             HTTPS로 안전하게 이벤트가 전달됩니다. OBS·TikTok LIVE Studio 모두 지원합니다.<br/>
             Tikke가 실행 중일 때 이벤트가 전송됩니다.
           </div>
+          {/* 방 키 관리 */}
+          <div style={{ padding: "12px 14px", background: "rgba(167,139,250,0.05)", border: "1px solid rgba(167,139,250,0.2)", borderRadius: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#A78BFA", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              방 키 (Room Key)
+            </div>
+            <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 8, lineHeight: 1.6 }}>
+              TikTok LIVE Studio URL의 <code style={{ color: "var(--text-muted)" }}>?room=</code> 뒤에 있는 키입니다.<br />
+              앱을 업데이트했다면 아래 URL을 복사해 TikTok LIVE Studio를 업데이트하세요.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                value={roomKeyInput}
+                onChange={(e) => setRoomKeyInput(e.target.value)}
+                placeholder="기존 방 키 입력 (예: kuxo0bckfr82)"
+                style={{ ...inputStyle, flex: 1, fontFamily: "monospace", fontSize: 12 }}
+              />
+              <button
+                onClick={() => void handleRoomKeySave()}
+                style={{ padding: "7px 14px", background: roomKeySaved ? "rgba(52,211,153,0.15)" : "rgba(167,139,250,0.12)", border: `1px solid ${roomKeySaved ? "rgba(52,211,153,0.4)" : "rgba(167,139,250,0.3)"}`, borderRadius: 6, color: roomKeySaved ? "#34D399" : "#A78BFA", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+              >
+                {roomKeySaved ? "✓ 저장됨" : "저장"}
+              </button>
+            </div>
+            {roomKey && (
+              <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-dim)" }}>
+                현재 방 키: <code style={{ color: "var(--primary)" }}>{roomKey}</code>
+              </div>
+            )}
+          </div>
+
           {Object.entries(cloudUrls).length === 0 ? (
             <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "16px 0", textAlign: "center" }}>URL 로딩 중...</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {Object.entries(cloudUrls).map(([label, url]) => (
-                <UrlRow key={label} label={label} url={url} />
-              ))}
+              {Object.entries(cloudUrls).map(([label, url]) => {
+                const dKey = CLOUD_DURATION_KEY[label];
+                const ms = dKey ? durations[dKey] : 0;
+                return <UrlRow key={label} label={label} url={withDuration(url, ms)} />;
+              })}
             </div>
           )}
 
@@ -408,6 +537,26 @@ export function OverlaySettings(): React.ReactElement {
             </button>
           </div>
 
+          {sectionTitle("오버레이 표시 시간")}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {(Object.keys(DURATION_LABELS) as Array<keyof DurationSettings>).map((key) => (
+              <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
+                <div style={{ fontSize: 12, color: "var(--text)" }}>{DURATION_LABELS[key]}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="number"
+                    value={durations[key]}
+                    min={0}
+                    step={500}
+                    onChange={(e) => void handleDurationSet(key, Number(e.target.value))}
+                    style={{ width: 80, ...inputStyle, fontSize: 12, textAlign: "right" as const }}
+                  />
+                  <span style={{ fontSize: 11, color: "var(--text-dim)" }}>ms</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
           <div style={{ fontSize: 11, color: "var(--text-muted)", padding: "8px 12px", background: "var(--surface-2)", borderRadius: 6, lineHeight: 1.6 }}>
             💡 TikTok LIVE Studio → 레이어 추가 → 링크 소스 → URL 붙여넣기
           </div>
@@ -444,12 +593,21 @@ export function OverlaySettings(): React.ReactElement {
       {/* URLs */}
       {sectionTitle("오버레이 URL")}
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-        {Object.entries(urls).map(([key, url]) => (
-          <UrlRow key={key} label={LOCAL_LABELS[key] ?? key} url={url} />
-        ))}
+        {Object.entries(urls)
+          .filter(([key]) => key !== "translation")
+          .map(([key, url]) => {
+            const dKey = LOCAL_DURATION_KEY[key];
+            const ms = dKey ? durations[dKey] : 0;
+            return <UrlRow key={key} label={LOCAL_LABELS[key] ?? key} url={withDuration(url, ms)} />;
+          })}
         {Object.keys(urls).length === 0 && (
           <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "8px 0" }}>서버 시작 대기 중...</div>
         )}
+      </div>
+      <div style={{ padding: "10px 14px", background: "rgba(255,100,50,0.06)", border: "1px solid rgba(255,100,50,0.2)", borderRadius: 8, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.7, marginTop: 4 }}>
+        <b style={{ color: "#FB923C" }}>⚠ TikTok LIVE Studio</b>는 로컬 IP 접속을 차단하는 경우가 있습니다.<br />
+        동작하지 않으면 <b style={{ color: "var(--primary)" }}>☁ 클라우드 탭</b>의 HTTPS URL을 사용하세요.<br />
+        번역 자막 URL은 <b style={{ color: "var(--text)" }}>연동 → 번역 자막</b> 페이지에서 확인하세요.
       </div>
 
       {/* Test Buttons */}
@@ -489,6 +647,29 @@ export function OverlaySettings(): React.ReactElement {
         >
           전송
         </button>
+      </div>
+
+      {sectionTitle("오버레이 표시 시간")}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {(Object.keys(DURATION_LABELS) as Array<keyof DurationSettings>).map((key) => (
+          <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 12, color: "var(--text)" }}>{DURATION_LABELS[key]}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="number"
+                value={durations[key]}
+                min={0}
+                step={500}
+                onChange={(e) => void handleDurationSet(key, Number(e.target.value))}
+                style={{ width: 80, ...inputStyle, fontSize: 12, textAlign: "right" as const }}
+              />
+              <span style={{ fontSize: 11, color: "var(--text-dim)" }}>ms</span>
+            </div>
+          </div>
+        ))}
+        <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>
+          설정 변경 후 OBS URL을 다시 복사하세요. 채팅 0ms = 자동 숨김 없음.
+        </div>
       </div>
 
       </>}

@@ -192,15 +192,31 @@ contextBridge.exposeInMainWorld("tikke", {
     recognize: (buffer: ArrayBuffer): Promise<{ text: string; error?: string }> =>
       ipcRenderer.invoke("tikke:stt:recognize", buffer),
   },
+  translate: (text: string, source: string, target: string): Promise<{ text: string; error?: string }> =>
+    ipcRenderer.invoke("tikke:translate", text, source, target),
+  openExternal: (url: string): Promise<void> =>
+    ipcRenderer.invoke("tikke:shell:openExternal", url),
   telegram: {
     test: (text?: string): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke("tikke:telegram:test", text ?? ""),
+  },
+  minecraft: {
+    test: (): Promise<{ ok: boolean; response?: string; error?: string }> =>
+      ipcRenderer.invoke("tikke:minecraft:test"),
+  },
+  gta: {
+    test: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke("tikke:gta:test"),
   },
   cloud: {
     push: (): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke("tikke:cloud:push"),
     pull: (): Promise<{ ok: boolean; error?: string; count?: number }> =>
       ipcRenderer.invoke("tikke:cloud:pull"),
+  },
+  clipboard: {
+    write: (text: string): Promise<void> =>
+      ipcRenderer.invoke("tikke:clipboard:write", text),
   },
   app: {
     getVersion: (): Promise<string> =>

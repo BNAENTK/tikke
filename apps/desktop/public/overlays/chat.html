@@ -44,9 +44,12 @@ html, body {
 <div id="status"></div>
 <div id="chat"></div>
 <script>
+const params = new URLSearchParams(location.search);
+const duration = parseInt(params.get('duration') || '0', 10); // 0 = no auto-hide
 const container = document.getElementById('chat');
 const statusDot = document.getElementById('status');
 const MAX = 15;
+const items = [];
 
 function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
@@ -55,8 +58,18 @@ function addChat(user, message) {
   el.className = 'msg';
   el.innerHTML = `<span class="nick">${esc(user?.nickname || user?.uniqueId || '?')}</span><span class="text">${esc(message)}</span>`;
   container.appendChild(el);
-  const all = container.querySelectorAll('.msg');
-  if (all.length > MAX) { const old = all[0]; old.classList.add('fade-out'); setTimeout(() => old.remove(), 400); }
+  items.push(el);
+  if (items.length > MAX) {
+    const old = items.shift();
+    old.classList.add('fade-out');
+    setTimeout(() => old.remove(), 400);
+  }
+  if (duration > 0) {
+    setTimeout(() => {
+      el.classList.add('fade-out');
+      setTimeout(() => { el.remove(); const i = items.indexOf(el); if (i >= 0) items.splice(i, 1); }, 400);
+    }, duration);
+  }
   el.scrollIntoView();
 }
 
@@ -65,6 +78,7 @@ function handleMessage(msg) {
     addChat(msg.payload.user, msg.payload.message);
   } else if (msg.type === 'clear') {
     container.innerHTML = '';
+    items.length = 0;
   }
 }
 

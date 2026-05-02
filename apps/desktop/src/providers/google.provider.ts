@@ -1,8 +1,24 @@
 import { BaseProvider } from "./base.provider";
 
-// Unofficial keyless endpoint — suitable for personal/low-volume use.
+type TikkeWindow = {
+  tikke?: {
+    translate?: (text: string, source: string, target: string) => Promise<{ text: string; error?: string }>;
+  };
+};
+
+// Routes through Electron main process (net.fetch) to bypass renderer CORS restrictions.
+// Falls back to direct fetch for non-Electron environments.
 export class GoogleProvider extends BaseProvider {
   async translate(text: string, source: string, target: string): Promise<string> {
+    const tikke = (window as unknown as TikkeWindow).tikke;
+
+    if (tikke?.translate) {
+      const result = await tikke.translate(text, source, target);
+      if (result.error) throw new Error(result.error);
+      return result.text;
+    }
+
+    // Fallback: direct fetch (non-Electron or dev)
     const url = new URL("https://translate.googleapis.com/translate_a/single");
     url.searchParams.set("client", "gtx");
     url.searchParams.set("sl", source);

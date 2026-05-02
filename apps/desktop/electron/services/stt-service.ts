@@ -1,46 +1,57 @@
-// Unofficial Google Speech-to-Text endpoint (same backend as Chrome's Web Speech API).
-// Works without a user API key for personal/low-volume use.
+// Google Cloud Speech-to-Text REST API v1
 // Audio format: raw 16-bit signed PCM, mono, 16 000 Hz.
+// Requires a Google Cloud API key with Speech-to-Text API enabled.
 
-const UNOFFICIAL_KEY = "AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw";
+const GOOGLE_SPEECH_V1 = "https://speech.googleapis.com/v1/speech:recognize";
 
 export async function recognizePCM(
   pcmBuffer: Buffer,
   lang = "ko-KR",
   userKey?: string,
 ): Promise<{ text: string; error?: string }> {
-  const key = userKey?.trim() || UNOFFICIAL_KEY;
-  const url =
-    `https://www.google.com/speech-api/v2/recognize` +
-    `?output=json&lang=${lang}&key=${key}`;
+  if (!userKey?.trim()) {
+    return {
+      text: "",
+      error:
+        "Google Cloud Speech API 키가 필요합니다. " +
+        "Google Cloud Console → Speech-to-Text API 활성화 → API 키 생성 후 아래 입력란에 입력하세요.",
+    };
+  }
+
+  const base64 = pcmBuffer.toString("base64");
 
   try {
-    const res = await fetch(url, {
+    const res = await fetch(`${GOOGLE_SPEECH_V1}?key=${userKey.trim()}`, {
       method: "POST",
-      headers: { "Content-Type": "audio/l16;rate=16000" },
-      body: pcmBuffer,
-      signal: AbortSignal.timeout(8000),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        config: {
+          encoding: "LINEAR16",
+          sampleRateHertz: 16000,
+          languageCode: lang,
+          model: "latest_short",
+        },
+        audio: { content: base64 },
+      }),
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!res.ok) {
-      if (res.status === 403 || res.status === 400) {
-        return { text: "", error: `STT API 거부됨 (${res.status}) — Google Cloud Speech API 키를 설정하세요.` };
+      const body = await res.text().catch(() => "");
+      if (res.status === 400 || res.status === 403) {
+        return {
+          text: "",
+          error: `API 키 오류 (${res.status}). Cloud Console에서 Speech-to-Text API가 활성화됐는지 확인하세요.`,
+        };
       }
-      return { text: "", error: `STT HTTP ${res.status}` };
+      return { text: "", error: `STT HTTP ${res.status}: ${body.slice(0, 120)}` };
     }
 
-    const raw = await res.text();
-    // Response is JSONL — may contain multiple lines; pick the first non-empty transcript
-    for (const line of raw.trim().split("\n")) {
-      try {
-        const obj = JSON.parse(line) as { result?: { alternative?: { transcript?: string }[] }[] };
-        const transcript = obj?.result?.[0]?.alternative?.[0]?.transcript ?? "";
-        if (transcript) return { text: transcript };
-      } catch {
-        // skip malformed line
-      }
-    }
-    return { text: "" };
+    const json = (await res.json()) as {
+      results?: { alternatives?: { transcript?: string }[] }[];
+    };
+    const transcript = json.results?.[0]?.alternatives?.[0]?.transcript ?? "";
+    return { text: transcript };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { text: "", error: `STT 네트워크 오류: ${msg}` };

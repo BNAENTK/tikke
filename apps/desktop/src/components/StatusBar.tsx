@@ -1,4 +1,8 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+
+type TikkeWindow = {
+  tikke?: { app?: { getVersion: () => Promise<string> } };
+};
 
 interface StatusBarProps {
   status: "idle" | "connecting" | "connected" | "disconnected" | "error";
@@ -25,6 +29,12 @@ const STATUS_LABEL: Record<StatusBarProps["status"], string> = {
 export function StatusBar({ status, username, onSignOut }: StatusBarProps): React.ReactElement {
   const color = STATUS_COLOR[status];
   const isConnected = status === "connected";
+  const [version, setVersion] = useState("");
+
+  useEffect(() => {
+    const tikke = (window as unknown as TikkeWindow).tikke;
+    void tikke?.app?.getVersion().then((v) => setVersion(v));
+  }, []);
 
   return (
     <div
@@ -51,7 +61,7 @@ export function StatusBar({ status, username, onSignOut }: StatusBarProps): Reac
             letterSpacing: 0.2,
           }}
         >
-          v0.1.0
+          {version ? `v${version}` : ""}
         </span>
       </div>
 

@@ -2,164 +2,336 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tikke Translation Overlay</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html, body {
-      background: transparent !important;
-      overflow: hidden;
-      width: 100vw;
-      height: 100vh;
-    }
+    html, body { background: transparent !important; overflow: hidden; width: 100vw; height: 100vh; }
 
     #container {
       position: fixed;
-      bottom: 5vh;
-      left: 4vw;
-      right: 4vw;
+      bottom: 5vh; left: 4vw; right: 4vw;
       display: flex;
       justify-content: center;
       pointer-events: none;
     }
-
     #subtitle-wrap {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 8px;
       padding: 14px 22px;
-      background: rgba(0, 0, 0, 0.44);
+      background: rgba(0,0,0,0.50);
       border-radius: 10px;
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
-      max-width: 90vw;
+      max-width: 92vw;
       opacity: 0;
       transform: translateY(8px);
       transition: opacity 0.35s ease, transform 0.35s ease;
     }
-
-    #subtitle-wrap.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
+    #subtitle-wrap.visible { opacity: 1; transform: translateY(0); }
     .line {
       font-weight: 700;
-      line-height: 1.35;
-      overflow: hidden;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
+      line-height: 1.4;
       font-family: -apple-system, "Noto Sans KR", "Malgun Gothic", sans-serif;
     }
-
     .line[hidden] { display: none !important; }
+
+    /* Status bar (bottom-right) */
+    #statusbar {
+      position: fixed; bottom: 8px; right: 10px;
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: rgba(255,255,255,0.5);
+      font-family: sans-serif; pointer-events: none;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #555; transition: background 0.3s; }
+    .dot.on  { background: #34D399; box-shadow: 0 0 6px #34D399; }
+    .dot.err { background: #F87171; box-shadow: 0 0 6px #F87171; }
+    #mic-dot { display: none; }
+    #mic-dot.on { display: inline-block; background: #60A5FA; box-shadow: 0 0 6px #60A5FA; }
+
+    /* Start button overlay (shown when not auto-started) */
+    #start-btn {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      padding: 12px 28px; background: rgba(0,242,234,0.15);
+      border: 1px solid rgba(0,242,234,0.4); border-radius: 8px;
+      color: #00F2EA; font-size: 14px; font-weight: 700;
+      font-family: sans-serif; cursor: pointer;
+      backdrop-filter: blur(4px); transition: opacity 0.3s;
+    }
+    #start-btn:hover { background: rgba(0,242,234,0.25); }
+    #start-btn.hidden { display: none; }
   </style>
 </head>
 <body>
-  <div id="status" style="position:fixed;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:#555;transition:background 0.3s;"></div>
+  <div id="statusbar">
+    <div class="dot" id="ws-dot" title="Tikke WS"></div>
+    <div class="dot" id="mic-dot" title="마이크"></div>
+    <span id="status-text"></span>
+  </div>
+
   <div id="container">
     <div id="subtitle-wrap">
       <div class="line" id="line-ko"></div>
+      <div class="line" id="line-interim" style="opacity:0.5; font-size:0.85em;"></div>
       <div class="line" id="line-en"></div>
       <div class="line" id="line-ja"></div>
       <div class="line" id="line-zhCN"></div>
     </div>
   </div>
 
+  <button id="start-btn" onclick="startRecognition()">▶ 음성 인식 시작</button>
+
   <script>
-    const FLAGS = { ko: '🇰🇷', en: '🇺🇸', ja: '🇯🇵', 'zh-CN': '🇨🇳' };
+    // ── URL params ────────────────────────────────────────────────────────────
+    const P = new URLSearchParams(location.search);
+    const AUTO_START      = P.get('autoStart') !== 'false';
+    const STT_ENABLED     = P.get('stt') !== 'false';   // false = display-only (TikTok LIVE Studio)
+    const DEFAULT_TIMEOUT = parseInt(P.get('duration') || '10000', 10);
+
+    // ── Style config (defaults; overridden by Tikke WS "translation_config") ──
+    let style = {
+      showOriginal: true,
+      enabledLangs: { en: true, ja: true, 'zh-CN': true },
+      fontSizes: { ko: 28, en: 24, ja: 22, 'zh-CN': 22 },
+      colors:    { ko: '#FFFFFF', en: '#A7F3D0', ja: '#BAE6FD', 'zh-CN': '#FDE68A' },
+      strokeWidth: 2,
+      shadowBlur: 6,
+      shadowColor: '#000000',
+      displayTimeoutMs: DEFAULT_TIMEOUT,
+    };
+
+    const FLAGS    = { ko: '🇰🇷', en: '🇺🇸', ja: '🇯🇵', 'zh-CN': '🇨🇳' };
     const LINE_IDS = { ko: 'line-ko', en: 'line-en', ja: 'line-ja', 'zh-CN': 'line-zhCN' };
+    const wsDot    = document.getElementById('ws-dot');
+    const micDot   = document.getElementById('mic-dot');
+    const statusTx = document.getElementById('status-text');
 
     function esc(s) {
-      return String(s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
-
-    function applyLineStyle(el, style, lang) {
-      const sz = style.fontSizes?.[lang] ?? 24;
-      const color = style.colors?.[lang] ?? '#fff';
-      const shadow = style.shadowBlur > 0
-        ? `0 0 ${style.shadowBlur}px ${style.shadowColor}, 1px 1px ${Math.ceil(style.shadowBlur / 2)}px ${style.shadowColor}`
-        : 'none';
+    function applyStyle(el, lang) {
+      const sz    = style.fontSizes?.[lang] ?? 24;
+      const color = style.colors?.[lang]    ?? '#fff';
+      const blur  = style.shadowBlur  ?? 6;
+      const sw    = style.strokeWidth ?? 2;
+      const sc    = style.shadowColor ?? '#000';
       el.style.fontSize = sz + 'px';
-      el.style.color = color;
-      el.style.textShadow = shadow;
-      el.style.webkitTextStroke = (style.strokeWidth > 0)
-        ? `${style.strokeWidth}px ${style.shadowColor ?? '#000'}`
-        : '';
-      el.style.letterSpacing = (lang === 'ja' || lang === 'zh-CN') ? '0.04em' : 'normal';
+      el.style.color    = color;
+      el.style.textShadow = blur > 0 ? `0 0 ${blur}px ${sc}, 1px 1px ${Math.ceil(blur/2)}px ${sc}` : 'none';
+      el.style.webkitTextStroke = sw > 0 ? `${sw}px ${sc}` : '';
     }
 
     let hideTimer = null;
+    const hasTranslations = (t) => t && Object.keys(t).length > 0;
 
-    function render(payload) {
-      const { subtitle, style } = payload;
-      const wrap = document.getElementById('subtitle-wrap');
+    function showSubtitle(original, translations) {
+      const wrap  = document.getElementById('subtitle-wrap');
+      const koEl  = document.getElementById('line-ko');
+      document.getElementById('line-interim').textContent = '';
 
-      // Korean original
-      const koEl = document.getElementById('line-ko');
-      if (style.showOriginal && subtitle.original) {
-        koEl.innerHTML = `<span style="font-size:0.65em;opacity:0.8">${FLAGS.ko}</span> ${esc(subtitle.original)}`;
-        applyLineStyle(koEl, style, 'ko');
+      if (style.showOriginal && original) {
+        koEl.innerHTML = `<span style="font-size:0.65em;opacity:0.7">${FLAGS.ko}</span> ${esc(original)}`;
+        applyStyle(koEl, 'ko');
         koEl.hidden = false;
       } else {
         koEl.hidden = true;
       }
 
-      // Translation lines
-      const targets = ['en', 'ja', 'zh-CN'];
-      for (const lang of targets) {
-        const el = document.getElementById(LINE_IDS[lang]);
-        const text = subtitle.translations?.[lang];
-        if (style.enabledLangs?.[lang] && text) {
-          el.innerHTML = `<span style="font-size:0.65em;opacity:0.8">${FLAGS[lang]}</span> ${esc(text)}`;
-          applyLineStyle(el, style, lang);
-          el.hidden = false;
-        } else {
-          el.hidden = true;
+      // 번역이 있을 때만 번역 라인 업데이트 — 없으면 이전 내용 유지
+      if (hasTranslations(translations)) {
+        for (const lang of ['en', 'ja', 'zh-CN']) {
+          const el      = document.getElementById(LINE_IDS[lang]);
+          const text    = translations[lang];
+          const enabled = style.enabledLangs?.[lang] !== false;
+          if (text && enabled) {
+            el.innerHTML = `<span style="font-size:0.65em;opacity:0.7">${FLAGS[lang]}</span> ${esc(text)}`;
+            applyStyle(el, lang);
+            el.hidden = false;
+          } else {
+            el.hidden = true;
+          }
         }
       }
 
-      // Show with transition
       wrap.classList.add('visible');
       clearTimeout(hideTimer);
-      hideTimer = setTimeout(
-        () => wrap.classList.remove('visible'),
-        style.displayTimeoutMs ?? 10000
-      );
+      hideTimer = setTimeout(() => wrap.classList.remove('visible'), style.displayTimeoutMs ?? DEFAULT_TIMEOUT);
     }
 
-    const statusDot = document.getElementById('status');
-    let retryTimer;
-    function connect() {
-      clearTimeout(retryTimer);
-      const ws = new WebSocket(`ws://${window.location.hostname}:18182`);
-      ws.onopen = function() { statusDot.classList.add('on'); };
+    function clearSubtitles() {
+      document.getElementById('subtitle-wrap').classList.remove('visible');
+      document.getElementById('line-interim').textContent = '';
+      clearTimeout(hideTimer);
+    }
 
-      ws.onmessage = function(e) {
-        try {
-          const msg = JSON.parse(e.data);
-          if (msg.type === 'translation' && msg.payload) {
-            render(msg.payload);
-          } else if (msg.type === 'clear') {
-            document.getElementById('subtitle-wrap').classList.remove('visible');
-            clearTimeout(hideTimer);
+    // ── Google Translate (unofficial, works in Chrome/OBS) ────────────────────
+    const translateCache = new Map();
+    async function googleTranslate(text, target) {
+      const key = `${text}|${target}`;
+      if (translateCache.has(key)) return translateCache.get(key);
+      const url = new URL('https://translate.googleapis.com/translate_a/single');
+      url.searchParams.set('client', 'gtx');
+      url.searchParams.set('sl', 'ko');
+      url.searchParams.set('tl', target);
+      url.searchParams.set('dt', 't');
+      url.searchParams.set('q', text);
+      try {
+        const res = await fetch(url.toString());
+        if (!res.ok) return '';
+        const data = await res.json();
+        const result = data[0].map(s => s[0] || '').join('').trim();
+        translateCache.set(key, result);
+        return result;
+      } catch { return ''; }
+    }
+
+    async function translateAll(text) {
+      const targets = [];
+      if (style.enabledLangs?.en  !== false) targets.push('en');
+      if (style.enabledLangs?.ja  !== false) targets.push('ja');
+      if (style.enabledLangs?.['zh-CN'] !== false) targets.push('zh-CN');
+      const results = await Promise.all(targets.map(t => googleTranslate(text, t)));
+      const translations = {};
+      targets.forEach((t, i) => { if (results[i]) translations[t] = results[i]; });
+      return translations;
+    }
+
+    // ── Speech Recognition ────────────────────────────────────────────────────
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recog       = null;
+    let shouldListen = false;  // user intent flag
+    let restartTimer = null;
+
+    function launchRecog() {
+      if (!shouldListen || !SR) return;
+      // Clean up any existing instance first
+      if (recog) { try { recog.abort(); } catch {} recog = null; }
+
+      const r = new SR();
+      r.lang = 'ko-KR';
+      r.continuous = true;
+      r.interimResults = true;
+      r.maxAlternatives = 1;
+      recog = r;
+
+      r.onstart = () => {
+        micDot.classList.add('on');
+        statusTx.textContent = '인식 중';
+      };
+      r.onend = () => {
+        recog = null;
+        micDot.classList.remove('on');
+        // Only restart if we're still supposed to be listening
+        if (shouldListen) {
+          clearTimeout(restartTimer);
+          restartTimer = setTimeout(launchRecog, 500);
+        }
+      };
+      r.onerror = (e) => {
+        if (e.error === 'no-speech' || e.error === 'aborted') return;
+        statusTx.textContent = e.error;
+        // On network error, back off longer before retry
+        if (e.error === 'network') {
+          clearTimeout(restartTimer);
+          restartTimer = setTimeout(launchRecog, 2000);
+        }
+      };
+      r.onresult = (e) => {
+        let interim = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const res = e.results[i];
+          if (res.isFinal) {
+            const text = res[0].transcript.trim();
+            if (!text) continue;
+            // 번역 전 즉시 한국어 원문을 표시해 공백 방지
+            showSubtitle(text, {});
+            translateAll(text).then(translations => {
+              showSubtitle(text, translations);
+              if (ws && ws.readyState === 1) {
+                try { ws.send(JSON.stringify({ type: 'translation_result', original: text, translations })); } catch {}
+              }
+            });
+          } else {
+            interim += res[0].transcript;
           }
-        } catch (err) {
-          console.error('[translation overlay]', err);
+        }
+        const interimEl = document.getElementById('line-interim');
+        if (interim) {
+          interimEl.textContent = '🎤 ' + interim;
+          // 말하는 중에는 hideTimer 계속 연장
+          const wrap = document.getElementById('subtitle-wrap');
+          wrap.classList.add('visible');
+          clearTimeout(hideTimer);
+          hideTimer = setTimeout(() => wrap.classList.remove('visible'), style.displayTimeoutMs ?? DEFAULT_TIMEOUT);
+        } else {
+          interimEl.textContent = '';
         }
       };
 
-      ws.onclose = function() { statusDot.classList.remove('on'); retryTimer = setTimeout(connect, 2000); };
-      ws.onerror = function() { ws.close(); };
+      try { r.start(); } catch (err) { console.error('[STT] start error', err); }
     }
 
-    connect();
+    function startRecognition() {
+      document.getElementById('start-btn').classList.add('hidden');
+      if (!SR) { statusTx.textContent = 'SpeechRecognition 미지원'; return; }
+      shouldListen = true;
+      launchRecog();
+    }
+
+    function stopRecognition() {
+      shouldListen = false;
+      clearTimeout(restartTimer);
+      micDot.classList.remove('on');
+      statusTx.textContent = '';
+      try { recog?.abort(); } catch {}
+      recog = null;
+    }
+
+    // ── Tikke WebSocket (for style config updates & clear commands) ───────────
+    let ws = null;
+    let wsRetry = null;
+    function connectWS() {
+      clearTimeout(wsRetry);
+      try {
+        ws = new WebSocket(`ws://localhost:18182`);
+      } catch {
+        wsRetry = setTimeout(connectWS, 3000);
+        return;
+      }
+      ws.onopen  = () => wsDot.classList.add('on');
+      ws.onclose = () => { wsDot.classList.remove('on'); wsRetry = setTimeout(connectWS, 2000); };
+      ws.onerror = () => ws.close();
+      ws.onmessage = e => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'translation_config' && (msg.style || msg.payload)) {
+            style = { ...style, ...(msg.style ?? msg.payload) };
+          } else if (msg.type === 'translation' && msg.payload) {
+            // From Tikke test button or re-broadcast from STT Chrome source
+            const sub = msg.payload.subtitle;
+            showSubtitle(sub?.original, sub?.translations);
+            if (msg.payload.style) style = { ...style, ...msg.payload.style };
+          } else if (msg.type === 'clear') {
+            clearSubtitles();
+          } else if (msg.type === 'translation_stop') {
+            stopRecognition();
+          } else if (msg.type === 'translation_start') {
+            startRecognition();
+          }
+        } catch {}
+      };
+    }
+
+    connectWS();
+    if (STT_ENABLED && AUTO_START) {
+      // slight delay so WS connects first
+      setTimeout(startRecognition, 800);
+    }
+    if (!STT_ENABLED) {
+      // Display-only mode: hide start button entirely
+      document.getElementById('start-btn').classList.add('hidden');
+      statusTx.textContent = '표시 전용';
+    }
   </script>
 </body>
 </html>

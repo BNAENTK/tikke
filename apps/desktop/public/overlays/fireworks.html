@@ -15,13 +15,12 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
 <div id="status"></div>
 <canvas id="c"></canvas>
 <script>
+const params = new URLSearchParams(location.search);
+const defaultDuration = parseInt(params.get('duration') || '3000', 10);
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
 resize();
 window.addEventListener('resize', resize);
 
@@ -35,15 +34,7 @@ function explode(x, y, count) {
   for (let i = 0; i < count; i++) {
     const angle = (Math.PI * 2 / count) * i + randomBetween(-0.3, 0.3);
     const speed = randomBetween(2, 8);
-    particles.push({
-      x, y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      alpha: 1,
-      size: randomBetween(2, 5),
-      color,
-      decay: randomBetween(0.012, 0.022),
-    });
+    particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, alpha: 1, size: randomBetween(2, 5), color, decay: randomBetween(0.012, 0.022) });
   }
 }
 
@@ -54,10 +45,8 @@ function animate() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vy += 0.12; // gravity
-    p.vx *= 0.98;
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.12; p.vx *= 0.98;
     p.alpha -= p.decay;
     if (p.alpha <= 0) { particles.splice(i, 1); continue; }
     ctx.globalAlpha = p.alpha;
@@ -75,7 +64,6 @@ function launchFireworks(intensity, durationMs) {
   const particlesPerBurst = 40 + count * 10;
   const interval = Math.max(200, 1000 / count);
   let elapsed = 0;
-
   const timer = setInterval(() => {
     const x = randomBetween(canvas.width * 0.2, canvas.width * 0.8);
     const y = randomBetween(canvas.height * 0.1, canvas.height * 0.5);
@@ -88,7 +76,7 @@ function launchFireworks(intensity, durationMs) {
 
 function handleMessage(msg) {
   if (msg.type === 'fireworks') {
-    launchFireworks(msg.intensity || 3, msg.durationMs || 3000);
+    launchFireworks(msg.intensity || 3, msg.durationMs || defaultDuration);
   } else if (msg.type === 'clear') {
     particles.length = 0;
     ctx.clearRect(0, 0, canvas.width, canvas.height);

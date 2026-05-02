@@ -68,6 +68,8 @@ class OverlayServer {
   private httpPort = 18181;
   private wsPort = 18182;
   private overlaysDir = "";
+  private connectHandlers: ((sendFn: (msg: OverlayMessage) => void) => void)[] = [];
+  private messageHandlers: ((msg: unknown) => void)[] = [];
 
   private resolveOverlaysDir(): string {
     if (app.isPackaged) {
@@ -133,6 +135,26 @@ class OverlayServer {
       this.clients.add(ws);
       console.log(`[overlay] WS client connected (${this.clients.size} total)`);
 
+      // Notify handlers so they can push initial state to this client
+      const sendToClient = (msg: OverlayMessage): void => {
+        try {
+          if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
+        } catch {}
+      };
+      for (const handler of this.connectHandlers) {
+        try { handler(sendToClient); } catch {}
+      }
+
+      ws.on("message", (data: Buffer) => {
+        try {
+          const msg = JSON.parse(data.toString()) as { type?: string; original?: string; translations?: unknown };
+          // Call registered handlers (e.g. cloud relay in ipc.ts)
+          for (const handler of this.messageHandlers) {
+            try { handler(msg); } catch {}
+          }
+        } catch {}
+      });
+
       ws.on("close", () => {
         this.clients.delete(ws);
       });
@@ -146,6 +168,14 @@ class OverlayServer {
     this.wss.on("error", (err) => {
       console.error("[overlay] WS server error:", err);
     });
+  }
+
+  onClientConnect(handler: (sendFn: (msg: OverlayMessage) => void) => void): void {
+    this.connectHandlers.push(handler);
+  }
+
+  onClientMessage(handler: (msg: unknown) => void): void {
+    this.messageHandlers.push(handler);
   }
 
   broadcast(msg: OverlayMessage): void {
@@ -189,14 +219,18 @@ class OverlayServer {
   }
 
   getUrls(): Record<string, string> {
-    const base = `http://127.0.0.1:${this.httpPort}/overlay`;
+    const ip   = getLocalIP();
+    const base = `http://${ip}:${this.httpPort}/overlay`;
+    // translation uses localhost — Chrome blocks mic on non-localhost HTTP origins
+    const localBase = `http://localhost:${this.httpPort}/overlay`;
     return {
-      chat:        `${base}/chat`,
-      gift:        `${base}/gift`,
-      marquee:     `${base}/marquee`,
-      video:       `${base}/video`,
-      fireworks:   `${base}/fireworks`,
-      translation: `${base}/translation`,
+      chat:                `${base}/chat`,
+      gift:                `${base}/gift`,
+      marquee:             `${base}/marquee`,
+      video:               `${base}/video`,
+      fireworks:           `${base}/fireworks`,
+      translation:         `${localBase}/translation`,          // Chrome용 (STT 포함)
+      "translation-display": `${localBase}/translation?stt=false`, // TikTok LIVE Studio용 (표시 전용)
     };
   }
 

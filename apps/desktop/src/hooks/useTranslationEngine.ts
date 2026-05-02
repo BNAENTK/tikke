@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslationStore } from "../stores/translationStore";
 import { translationCache } from "../services/translation-cache";
 import { translationQueue } from "../services/translation-queue";
@@ -22,12 +22,14 @@ const ALL_TARGETS = ["en", "ja", "zh-CN"] as const;
 
 export function useTranslationEngine(): {
   translate: (text: string) => void;
+  translationError: string | null;
 } {
   const config = useTranslationStore((s) => s.config);
   const setConfig = useTranslationStore((s) => s.setConfig);
   const setConfigLoaded = useTranslationStore((s) => s.setConfigLoaded);
   const setCurrentSubtitle = useTranslationStore((s) => s.setCurrentSubtitle);
   const addToHistory = useTranslationStore((s) => s.addToHistory);
+  const [translationError, setTranslationError] = useState<string | null>(null);
 
   // Load settings from Tikke on first mount
   useEffect(() => {
@@ -95,7 +97,10 @@ export function useTranslationEngine(): {
         for (const [target, translation] of Object.entries(fresh)) {
           translationCache.set(text, target, translation);
         }
+        setTranslationError(null);
       } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setTranslationError(`번역 실패: ${msg}`);
         console.error("[TranslationEngine] failed:", err);
       }
     }
@@ -154,5 +159,5 @@ export function useTranslationEngine(): {
     debounce((text: string) => { void translateAsyncRef.current(text); }, 150)
   );
 
-  return { translate: debouncedRef.current };
+  return { translate: debouncedRef.current, translationError };
 }
