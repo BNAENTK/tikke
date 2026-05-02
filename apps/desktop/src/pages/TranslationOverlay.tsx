@@ -49,6 +49,7 @@ function sendStyleConfig(config: ReturnType<typeof useTranslationStore.getState>
       strokeWidth: config.strokeWidth,
       shadowBlur: config.shadowBlur,
       shadowColor: config.shadowColor,
+      bgOpacity: config.bgOpacity,
       displayTimeoutMs: config.displayTimeoutMs,
     },
   });
@@ -359,8 +360,9 @@ export function TranslationOverlay(): React.ReactElement {
             })}
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
               {[
-                { key: "strokeWidth" as const, label: "외곽선", min: 0, max: 6,  suffix: "px" },
-                { key: "shadowBlur"  as const, label: "그림자", min: 0, max: 24, suffix: "px" },
+                { key: "strokeWidth" as const, label: "외곽선",  min: 0, max: 6,   suffix: "px" },
+                { key: "shadowBlur"  as const, label: "그림자",  min: 0, max: 24,  suffix: "px" },
+                { key: "bgOpacity"   as const, label: "배경 투명도", min: 0, max: 100, suffix: "%" },
               ].map(({ key, label: lbl, min, max, suffix }) => (
                 <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, color: "var(--text-muted)", width: 50 }}>{lbl}</span>

@@ -60,6 +60,7 @@ export interface AppSettings {
   translationStrokeWidth: number;
   translationShadowBlur: number;
   translationShadowColor: string;
+  translationBgOpacity: number;
   translationDisplayTimeoutMs: number;
   translationLibreUrl: string;
   translationPapagoProxyUrl: string;
@@ -155,6 +156,7 @@ const DEFAULTS: AppSettings = {
   translationStrokeWidth: 2,
   translationShadowBlur: 6,
   translationShadowColor: "#000000",
+  translationBgOpacity: 50,
   translationDisplayTimeoutMs: 10000,
   translationLibreUrl: "https://libretranslate.com",
   translationPapagoProxyUrl: "",

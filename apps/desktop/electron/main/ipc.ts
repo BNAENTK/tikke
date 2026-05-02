@@ -213,6 +213,7 @@ export function registerIpcHandlers(
       strokeWidth: Number(s.translationStrokeWidth ?? 2),
       shadowBlur:  Number(s.translationShadowBlur  ?? 6),
       shadowColor: String(s.translationShadowColor  ?? "#000000"),
+      bgOpacity:   Number(s.translationBgOpacity    ?? 50),
       displayTimeoutMs: Number(s.translationDisplayTimeoutMs ?? 10000),
     };
     void cloudOverlayService.broadcastMessage({
@@ -248,6 +249,7 @@ export function registerIpcHandlers(
         strokeWidth:     Number(s.translationStrokeWidth    ?? 2),
         shadowBlur:      Number(s.translationShadowBlur     ?? 6),
         shadowColor:     String(s.translationShadowColor    ?? "#000000"),
+        bgOpacity:       Number(s.translationBgOpacity      ?? 50),
         displayTimeoutMs: Number(s.translationDisplayTimeoutMs ?? 10000),
       },
     } as unknown as OverlayMessage);

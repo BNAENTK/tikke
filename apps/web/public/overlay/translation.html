@@ -72,8 +72,15 @@
       fontSizes: { ko: 28, en: 24, ja: 22, 'zh-CN': 22 },
       colors: { ko: '#FFFFFF', en: '#A7F3D0', ja: '#BAE6FD', 'zh-CN': '#FDE68A' },
       strokeWidth: 2, shadowBlur: 6, shadowColor: '#000',
+      bgOpacity: 50,
       displayTimeoutMs: defaultDuration,
     };
+
+    function applyBgOpacity(s) {
+      const wrap = document.getElementById('subtitle-wrap');
+      const alpha = (s.bgOpacity ?? 50) / 100;
+      wrap.style.background = `rgba(0,0,0,${alpha})`;
+    }
 
     function render(payload) {
       const subtitle = payload.subtitle ?? payload;
@@ -102,6 +109,7 @@
         }
       }
 
+      applyBgOpacity(style);
       wrap.classList.add('visible');
       clearTimeout(hideTimer);
       hideTimer = setTimeout(() => wrap.classList.remove('visible'), timeout);

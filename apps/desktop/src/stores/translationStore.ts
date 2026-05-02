@@ -25,6 +25,7 @@ export interface TranslationConfig {
   strokeWidth: number;
   shadowBlur: number;
   shadowColor: string;
+  bgOpacity: number;
   displayTimeoutMs: number;
   libreUrl: string;
   papagoProxyUrl: string;
@@ -47,6 +48,7 @@ export const DEFAULT_CONFIG: TranslationConfig = {
   strokeWidth: 2,
   shadowBlur: 6,
   shadowColor: "#000000",
+  bgOpacity: 50,
   displayTimeoutMs: 10000,
   libreUrl: "https://libretranslate.com",
   papagoProxyUrl: "",

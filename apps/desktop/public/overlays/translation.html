@@ -97,8 +97,15 @@
       strokeWidth: 2,
       shadowBlur: 6,
       shadowColor: '#000000',
+      bgOpacity: 50,
       displayTimeoutMs: DEFAULT_TIMEOUT,
     };
+
+    function applyBgOpacity() {
+      const wrap = document.getElementById('subtitle-wrap');
+      const alpha = (style.bgOpacity ?? 50) / 100;
+      wrap.style.background = `rgba(0,0,0,${alpha})`;
+    }
 
     const FLAGS    = { ko: '🇰🇷', en: '🇺🇸', ja: '🇯🇵', 'zh-CN': '🇨🇳' };
     const LINE_IDS = { ko: 'line-ko', en: 'line-en', ja: 'line-ja', 'zh-CN': 'line-zhCN' };
@@ -306,6 +313,7 @@
           const msg = JSON.parse(e.data);
           if (msg.type === 'translation_config' && (msg.style || msg.payload)) {
             style = { ...style, ...(msg.style ?? msg.payload) };
+            applyBgOpacity();
           } else if (msg.type === 'translation' && msg.payload) {
             // From Tikke test button or re-broadcast from STT Chrome source
             const sub = msg.payload.subtitle;
